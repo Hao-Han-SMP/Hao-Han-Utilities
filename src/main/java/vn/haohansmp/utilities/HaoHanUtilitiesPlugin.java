@@ -8,6 +8,8 @@ import vn.haohansmp.utilities.carry.CarryLockManager;
 import vn.haohansmp.utilities.carry.CarryService;
 import vn.haohansmp.utilities.carry.CarrySessionManager;
 import vn.haohansmp.utilities.carry.CarryValidator;
+import vn.haohansmp.utilities.chest.ChestCarryListener;
+import vn.haohansmp.utilities.chest.ChestCarryService;
 import vn.haohansmp.utilities.command.HaoHanUtilitiesCommand;
 import vn.haohansmp.utilities.config.MessageService;
 import vn.haohansmp.utilities.database.CarryRepository;
@@ -88,11 +90,13 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
 
         carryService = new CarryService(this, databaseExecutor, repository, sessions, validator, locks,
                 viewers, serializers, protection, renderer, messages);
+        ChestCarryService chestCarry = new ChestCarryService(this, carryService, protection, messages);
         RecoveryService recovery = new RecoveryService(this, databaseExecutor, repository, carryService, serializers);
         PhantomSuppressionListener phantomSuppression = new PhantomSuppressionListener(this);
 
         PluginManager plugins = getServer().getPluginManager();
         plugins.registerEvents(viewers, this);
+        plugins.registerEvents(new ChestCarryListener(chestCarry), this);
         plugins.registerEvents(new PickupPlaceListener(carryService), this);
         plugins.registerEvents(new CarryRestrictionListener(this, carryService), this);
         plugins.registerEvents(new PlayerLifecycleListener(carryService, recovery), this);

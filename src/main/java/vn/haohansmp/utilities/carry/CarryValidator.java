@@ -6,7 +6,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.block.data.type.Chest;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -63,8 +62,8 @@ public final class CarryValidator {
         if (player.getEyeLocation().distance(block.getLocation().add(0.5, 0.5, 0.5))
                 > plugin.getConfig().getDouble("pickup.maximum-distance", 4.5)) return "too-far";
         if (!allowed.contains(block.getType())) return "unsupported-block";
-        if (block.getBlockData() instanceof Chest chest && chest.getType() != Chest.Type.SINGLE) {
-            return "double-chest-not-supported";
+        if (block.getType() == Material.CHEST || block.getType() == Material.TRAPPED_CHEST) {
+            return "unsupported-block";
         }
         BlockPosition position = BlockPosition.from(block);
         if (locks.isLocked(position)) return "block-is-busy";

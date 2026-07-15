@@ -6,6 +6,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public final class MessageService {
@@ -24,6 +27,15 @@ public final class MessageService {
             plugin.saveResource("messages.yml", false);
         }
         messages = YamlConfiguration.loadConfiguration(file);
+        try (InputStream bundled = plugin.getResource("messages.yml")) {
+            if (bundled != null) {
+                YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                        new InputStreamReader(bundled, StandardCharsets.UTF_8));
+                messages.setDefaults(defaults);
+            }
+        } catch (java.io.IOException exception) {
+            plugin.getLogger().warning("Cannot load bundled message defaults: " + exception.getMessage());
+        }
     }
 
     public void send(Player player, String key) {

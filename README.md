@@ -19,10 +19,11 @@ Ngôn ngữ: Tiếng Việt | [English](README.en.md)
 
 Hảo Hán Utilities là plugin Paper/Purpur `1.21.11` cho Hao Hán SMP. Phiên bản đầu tiên gồm hai module:
 
-- **Carry Blocks:** cúi người, tay không và right click để bưng một container hoặc functional block; right click lần nữa để đặt xuống.
+- **Chest Carry:** shift + chuột phải để chuyển đúng nửa Chest/Trapped Chest thành item chứa toàn bộ dữ liệu, sau đó đặt lại như item chest bình thường.
+- **Functional Block Carry:** cơ chế transaction dành cho barrel, furnace, brewing stand và các functional block khác.
 - **Phantom Suppression:** chặn mọi lần spawn Phantom và xóa Phantom đã tồn tại khi plugin, world hoặc chunk được load.
 
-Carry Blocks không biến block thành item. Inventory và trạng thái block được giữ trong SQLite transaction journal, còn `BlockDisplay` chỉ dùng để hiển thị block trước người chơi.
+Chest dùng `BlockStateMeta` giống cơ chế copy block data trong Creative và không cần SQLite/animation. Các functional block khác vẫn dùng SQLite transaction journal và `BlockDisplay` để đảm bảo recovery.
 
 ## Công Nghệ Sử Dụng
 
@@ -37,7 +38,18 @@ Carry Blocks không biến block thành item. Inventory và trạng thái block 
 
 ## Tính Năng
 
-### Carry Blocks
+### Chest Carry
+
+- Shift + chuột phải vào Chest hoặc Trapped Chest để nhận đúng `1` item chest.
+- Item giữ 27 slot của chính nửa chest được chọn, custom name, lock, PDC, loot table và seed.
+- Khi chọn một nửa rương đôi, nửa còn lại được chuyển thành chest đơn và giữ nguyên 27 slot dữ liệu của nó.
+- Khi đặt item, plugin áp lại `BlockStateMeta` vào chest mới; có thể đặt cạnh chest khác để tạo rương đôi mới.
+- Yêu cầu ít nhất một ô inventory trống và từ chối thao tác khi container đang có viewer.
+- Kiểm tra protection trên cả hai nửa của rương đôi trước khi thay đổi block.
+- Có rollback đồng bộ nếu không thể sửa nửa còn lại hoặc không thể tạo item.
+- Không dùng SQLite hoặc `BlockDisplay` cho Chest/Trapped Chest.
+
+### Functional Block Carry
 
 - Mỗi người chơi chỉ được bưng một block tại một thời điểm.
 - Luồng transaction: `PREPARED → CARRIED → PLACING → PLACED/RESTORED`.
@@ -53,13 +65,13 @@ Carry Blocks không biến block thành item. Inventory và trạng thái block 
 - Tự restore về vị trí gốc khi logout, kick, chết hoặc plugin tắt nếu vị trí vẫn an toàn.
 - Crash recovery không ghi đè block khác và giữ payload trong database khi không thể xác định an toàn.
 - Protection probe qua `BlockBreakEvent`, `BlockCanBuildEvent` và hai custom event cancellable.
-- Chặn rương đôi trong phiên bản hiện tại để tránh lỗi hai-block transaction.
 
 Block được hỗ trợ mặc định:
 
 | Nhóm | Block |
 | --- | --- |
-| Container | Chest đơn, Trapped Chest đơn, Barrel, Hopper, Dispenser, Dropper, Shulker Box, Crafter |
+| Chest item | Chest đơn/đôi, Trapped Chest đơn/đôi |
+| Container transaction | Barrel, Hopper, Dispenser, Dropper, Shulker Box, Crafter |
 | Furnace | Furnace, Blast Furnace, Smoker |
 | Functional | Brewing Stand, Crafting Table, Smithing Table, Stonecutter, Cartography Table, Loom, Grindstone, Enchanting Table |
 
@@ -81,7 +93,7 @@ Block được hỗ trợ mặc định:
 ## Cài Đặt
 
 1. Build plugin hoặc tải file JAR từ bản phát hành.
-2. Copy `HaoHanUtilities-1.0.0.jar` vào thư mục `plugins/`.
+2. Copy `HaoHanUtilities-1.1.0.jar` vào thư mục `plugins/`.
 3. Khởi động hoặc restart server; không dùng `/reload` của Bukkit để test transaction.
 4. Kiểm tra log `Hảo Hán Utilities enabled` và chỉnh `plugins/HaoHanUtilities/config.yml` nếu cần.
 
@@ -91,7 +103,16 @@ Database được tạo tại:
 plugins/HaoHanUtilities/carry-blocks.db
 ```
 
-## Cách Sử Dụng Carry Blocks
+## Cách Di Chuyển Chest
+
+1. Đảm bảo inventory có ít nhất một ô trống.
+2. Shift + chuột phải vào nửa chest muốn lấy.
+3. Item nhận được chứa inventory và block-state của đúng nửa đã chọn.
+4. Đặt item như chest bình thường; dữ liệu được khôi phục ngay khi block được đặt.
+
+Nếu chest đang là rương đôi, nửa không được chọn vẫn ở trong world dưới dạng chest đơn và giữ nguyên dữ liệu của nó.
+
+## Cách Sử Dụng Functional Block Carry
 
 1. Đảm bảo hai tay trống.
 2. Cúi người và right click block được hỗ trợ.
@@ -145,6 +166,7 @@ Các key chính:
 | `placement.require-solid-support` | `true` | Yêu cầu block đỡ rắn. |
 | `carrying.disable-teleport` | `true` | Chặn teleport khi đang bưng. |
 | `recovery.restore-on-startup` | `true` | Đọc transaction dang dở khi plugin enable. |
+| `chest-carry.enabled` | `true` | Bật cơ chế Chest item không animation/SQLite. |
 | `phantom-suppression.enabled` | `true` | Không cho Phantom spawn. |
 | `phantom-suppression.remove-existing` | `true` | Xóa Phantom đã tồn tại trong chunk được load. |
 | `worlds.mode` | `BLACKLIST` | Chế độ danh sách world của Carry Blocks. |
@@ -167,7 +189,7 @@ Linux/macOS:
 JAR deploy được tạo tại:
 
 ```text
-build/libs/HaoHanUtilities-1.0.0.jar
+build/libs/HaoHanUtilities-1.1.0.jar
 ```
 
 ## Ghi Chú Vận Hành

@@ -19,24 +19,28 @@ Language: [Tiếng Việt](README.md) | English
 
 Hao Han Utilities is a Paper/Purpur `1.21.11` plugin with two modules:
 
-- **Carry Blocks:** sneak with empty hands and right-click to carry a supported container or functional block, then right-click again to place it.
+- **Chest Carry:** sneak and right-click to turn the selected Chest/Trapped Chest half into an item containing its complete state, then place it normally.
+- **Functional Block Carry:** transactional carrying for barrels, furnaces, brewing stands and other functional blocks.
 - **Phantom Suppression:** cancels every Phantom spawn and removes existing Phantoms when the plugin, a world, or a chunk loads.
 
-The carried block is never represented by an item. SQLite is the transaction source of truth; `BlockDisplay` is visual only.
+Chest Carry uses `BlockStateMeta`, matching Creative's copied block-state behavior, and needs no SQLite or animation. Other functional blocks keep the SQLite transaction and `BlockDisplay` recovery flow.
 
 ## Features
 
-- Durable `PREPARED → CARRIED → PLACING → PLACED/RESTORED` SQLite journal.
+- Chest/Trapped Chest becomes one data-bearing item when sneak-right-clicked.
+- The selected half keeps its 27 slots, custom name, lock, PDC and loot state.
+- Removing one half of a double chest safely converts the other half to a single chest while preserving its own 27 slots.
+- Placing the item reapplies its `BlockStateMeta`; both regular and trapped double chests are supported.
+- Durable `PREPARED → CARRIED → PLACING → PLACED/RESTORED` SQLite journal for non-chest functional blocks.
 - Inventory, item metadata, block PDC, custom name, lock and `BlockData` preservation.
 - Furnace/smoker/blast-furnace progress and brewing-stand state preservation.
 - Runtime locks, fingerprints, plugin chunk tickets and restored-payload verification.
 - Crash, logout, death and plugin-disable recovery without overwriting unknown blocks.
 - One shared `BlockDisplay` follow task for every active carrier.
-- Double chests are explicitly rejected in this version.
 - Standard protection probes plus cancellable custom pickup/place events.
 - Global Phantom spawn cancellation and cleanup of already-loaded Phantoms.
 
-Supported blocks include single chests, trapped chests, barrels, furnaces, smokers, blast furnaces, hoppers, dispensers, droppers, brewing stands, crafters, shulker boxes and the functional tables listed in `config.yml`.
+Supported blocks include single/double chests, trapped chests, barrels, furnaces, smokers, blast furnaces, hoppers, dispensers, droppers, brewing stands, crafters, shulker boxes and the functional tables listed in `config.yml`.
 
 ## Requirements
 
@@ -46,12 +50,21 @@ Supported blocks include single chests, trapped chests, barrels, furnaces, smoke
 
 ## Installation
 
-1. Build or download `HaoHanUtilities-1.0.0.jar`.
+1. Build or download `HaoHanUtilities-1.1.0.jar`.
 2. Copy it to the server's `plugins/` directory.
 3. Restart the server. Do not use Bukkit `/reload` to test transaction behavior.
 4. Review `plugins/HaoHanUtilities/config.yml`.
 
-The transaction database is stored at `plugins/HaoHanUtilities/carry-blocks.db`.
+The functional-block transaction database is stored at `plugins/HaoHanUtilities/carry-blocks.db`; Chest Carry does not use it.
+
+## Moving a Chest
+
+1. Keep at least one inventory slot empty.
+2. Sneak and right-click the chest half you want to move.
+3. The resulting item contains the selected half's inventory and block-state data.
+4. Place the item normally to restore its contents and metadata.
+
+For a double chest, the unselected half remains in the world as a single chest with its own contents preserved.
 
 ## Commands
 
@@ -88,7 +101,7 @@ Linux/macOS:
 ./gradlew clean test shadowJar
 ```
 
-The deployable JAR is written to `build/libs/HaoHanUtilities-1.0.0.jar`.
+The deployable JAR is written to `build/libs/HaoHanUtilities-1.1.0.jar`.
 
 ## Operations
 

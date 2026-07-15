@@ -36,6 +36,9 @@ protection:
   enabled: true
   fail-closed: true
 
+chest-carry:
+  enabled: true
+
 phantom-suppression:
   enabled: true
   remove-existing: true
@@ -46,10 +49,7 @@ worlds:
     - world_the_end
 
 blocks:
-  deny-double-chests: true
   allowed:
-    - CHEST
-    - TRAPPED_CHEST
     - BARREL
     - FURNACE
     - BLAST_FURNACE
