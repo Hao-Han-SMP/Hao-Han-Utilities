@@ -1,0 +1,69 @@
+pickup:
+  require-sneaking: true
+  require-empty-main-hand: true
+  require-empty-off-hand: true
+  maximum-distance: 4.5
+  cooldown-milliseconds: 500
+  deny-open-containers: true
+
+placement:
+  maximum-distance: 5.0
+  require-solid-support: true
+  allow-replaceable-blocks: true
+  apply-physics-after-restore: false
+
+carrying:
+  maximum-one-block-per-player: true
+  disable-sprinting: true
+  disable-gliding: true
+  disable-flight: false
+  disable-combat: true
+  disable-teleport: true
+  maximum-duration-seconds: 300
+
+logout:
+  behavior: RESTORE_ORIGINAL
+
+death:
+  behavior: RESTORE_ORIGINAL
+
+recovery:
+  restore-on-startup: true
+  fail-closed: true
+  stale-session-minutes: 30
+
+protection:
+  enabled: true
+  fail-closed: true
+
+phantom-suppression:
+  enabled: true
+  remove-existing: true
+
+worlds:
+  mode: BLACKLIST
+  list:
+    - world_the_end
+
+blocks:
+  deny-double-chests: true
+  allowed:
+    - CHEST
+    - TRAPPED_CHEST
+    - BARREL
+    - FURNACE
+    - BLAST_FURNACE
+    - SMOKER
+    - HOPPER
+    - DISPENSER
+    - DROPPER
+    - BREWING_STAND
+    - CRAFTER
+    - SHULKER_BOX
+    - CRAFTING_TABLE
+    - SMITHING_TABLE
+    - STONECUTTER
+    - CARTOGRAPHY_TABLE
+    - LOOM
+    - GRINDSTONE
+    - ENCHANTING_TABLE
