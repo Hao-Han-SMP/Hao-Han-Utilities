@@ -8,7 +8,7 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockCanBuildEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.java.JavaPlugin;
-import vn.haohansmp.utilities.carry.CarriedBlockPayload;
+import vn.haohansmp.utilities.carry.CarryPayload;
 import vn.haohansmp.utilities.event.CarryBlockPickupEvent;
 import vn.haohansmp.utilities.event.CarryBlockPlaceEvent;
 
@@ -21,7 +21,7 @@ public final class ProtectionService {
         this.plugin = plugin;
     }
 
-    public boolean canPickup(Player player, Block block, UUID carryId) {
+    public boolean canPickupBlock(Player player, Block block, UUID carryId) {
         if (!plugin.getConfig().getBoolean("protection.enabled", true)) {
             return true;
         }
@@ -41,19 +41,7 @@ public final class ProtectionService {
         return !breakProbe.isCancelled();
     }
 
-    public boolean canPickupRecheck(Player player, Block block, UUID carryId) {
-        if (!plugin.getConfig().getBoolean("protection.enabled", true)) {
-            return true;
-        }
-        if (player.hasPermission("haohanutilities.bypass.protection")) {
-            return true;
-        }
-        CarryBlockPickupEvent carryEvent = new CarryBlockPickupEvent(player, block, carryId);
-        Bukkit.getPluginManager().callEvent(carryEvent);
-        return !carryEvent.isCancelled();
-    }
-
-    public boolean canPlace(Player player, Block destination, BlockData data, CarriedBlockPayload payload) {
+    public boolean canPlaceBlock(Player player, Block destination, BlockData data, CarryPayload payload) {
         if (!plugin.getConfig().getBoolean("protection.enabled", true)) {
             return true;
         }

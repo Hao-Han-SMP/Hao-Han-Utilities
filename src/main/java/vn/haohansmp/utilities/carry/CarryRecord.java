@@ -9,7 +9,7 @@ public record CarryRecord(
         BlockPosition originalPosition,
         BlockPosition placementPosition,
         CarryStatus status,
-        CarriedBlockPayload payload,
+        CarryPayload payload,
         Instant createdAt,
         Instant updatedAt
 ) {

@@ -4,7 +4,8 @@ plugins {
 }
 
 group = "vn.haohansmp"
-version = "1.1.0"
+version = "2.0.0"
+val pluginVersion = version.toString()
 
 repositories {
     mavenCentral()
@@ -17,7 +18,6 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
     implementation("org.xerial:sqlite-jdbc:3.53.2.0")
-    implementation("com.google.code.gson:gson:2.13.2")
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -39,7 +39,7 @@ tasks {
     processResources {
         filteringCharset = "UTF-8"
         filesMatching("plugin.yml") {
-            expand("version" to project.version)
+            expand("version" to pluginVersion)
         }
     }
 
@@ -50,7 +50,6 @@ tasks {
     shadowJar {
         archiveClassifier.set("")
         relocate("org.sqlite", "vn.haohansmp.utilities.libs.sqlite")
-        relocate("com.google.gson", "vn.haohansmp.utilities.libs.gson")
     }
 
     jar {

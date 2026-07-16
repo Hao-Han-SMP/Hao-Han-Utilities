@@ -1,8 +1,6 @@
 <div align="center">
 
-# Hảo Hán Utilities
-
-Bộ tiện ích server-side dành cho Hao Hán SMP: bưng functional block an toàn và loại bỏ Phantom khỏi thế giới.
+# Hao Han Utilities
 
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-62B47A?style=for-the-badge&logo=minecraft&logoColor=white)](https://www.minecraft.net/)
 [![Paper](https://img.shields.io/badge/Paper-API-222222?style=for-the-badge&logo=paper&logoColor=white)](https://papermc.io/)
@@ -15,187 +13,127 @@ Ngôn ngữ: Tiếng Việt | [English](README.en.md)
 
 </div>
 
-## Tổng Quan
+## Giới thiệu
 
-Hảo Hán Utilities là plugin Paper/Purpur `1.21.11` cho Hao Hán SMP. Phiên bản đầu tiên gồm hai module:
+Hao Han Utilities là plugin Paper/Purpur `1.21.11` tập trung vào hai tính năng:
 
-- **Chest Carry:** shift + chuột phải để chuyển đúng nửa Chest/Trapped Chest thành item chứa toàn bộ dữ liệu, sau đó đặt lại như item chest bình thường.
-- **Functional Block Carry:** cơ chế transaction dành cho barrel, furnace, brewing stand và các functional block khác.
-- **Phantom Suppression:** chặn mọi lần spawn Phantom và xóa Phantom đã tồn tại khi plugin, world hoặc chunk được load.
+- **Carry:** người chơi có thể nhấc block chức năng hoặc động vật lên, mang đến vị trí khác rồi đặt xuống.
+- **Phantom Suppression:** ngăn Phantom xuất hiện và xóa Phantom đang tồn tại trong các world đã tải.
 
-Chest dùng `BlockStateMeta` giống cơ chế copy block data trong Creative và không cần SQLite/animation. Các functional block khác vẫn dùng SQLite transaction journal và `BlockDisplay` để đảm bảo recovery.
+Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pack.
 
-## Công Nghệ Sử Dụng
+## Cách sử dụng Carry
 
-| Toolkit | Vai trò |
-| --- | --- |
-| Paper API | API plugin và block-state cho Minecraft `1.21.11`. |
-| Purpur | Môi trường server tương thích được khuyến nghị. |
-| Java 21 | Ngôn ngữ và runtime chính. |
-| Gradle Wrapper | Build reproducible, không cần cài Gradle toàn cục. |
-| SQLite (WAL + FULL sync) | Transaction journal chống mất đồ/duplicate và hỗ trợ crash recovery. |
-| JUnit 5 | Kiểm thử codec và vòng đời SQLite transaction. |
+### Nhấc vật
 
-## Tính Năng
+1. Đảm bảo cả tay chính và tay phụ đều trống.
+2. Cúi người bằng phím `Shift`.
+3. Chuột phải vào block hoặc động vật muốn nhấc.
 
-### Chest Carry
+Người chơi chỉ có thể carry một vật tại một thời điểm và sẽ di chuyển chậm hơn trong lúc đang mang vật.
 
-- Shift + chuột phải vào Chest hoặc Trapped Chest để nhận đúng `1` item chest.
-- Item giữ 27 slot của chính nửa chest được chọn, custom name, lock, PDC, loot table và seed.
-- Khi chọn một nửa rương đôi, nửa còn lại được chuyển thành chest đơn và giữ nguyên 27 slot dữ liệu của nó.
-- Khi đặt item, plugin áp lại `BlockStateMeta` vào chest mới; có thể đặt cạnh chest khác để tạo rương đôi mới.
-- Yêu cầu ít nhất một ô inventory trống và từ chối thao tác khi container đang có viewer.
-- Kiểm tra protection trên cả hai nửa của rương đôi trước khi thay đổi block.
-- Có rollback đồng bộ nếu không thể sửa nửa còn lại hoặc không thể tạo item.
-- Không dùng SQLite hoặc `BlockDisplay` cho Chest/Trapped Chest.
+### Đặt vật
 
-### Functional Block Carry
+1. Nhìn vào vị trí muốn đặt.
+2. Chuột phải vào một mặt block.
+3. Vật đang carry sẽ được đặt ở mặt vừa chọn.
 
-- Mỗi người chơi chỉ được bưng một block tại một thời điểm.
-- Luồng transaction: `PREPARED → CARRIED → PLACING → PLACED/RESTORED`.
-- Chỉ xóa block sau khi payload `PREPARED` đã được ghi thành công.
-- Giữ inventory với Paper byte serialization, gồm cả metadata, enchantment, book, bundle, shulker content và PDC của item.
-- Giữ `BlockData`, custom name, lock và Persistent Data Container của block.
-- Giữ burn/cook time, cook speed của furnace, blast furnace, smoker.
-- Giữ brewing time, fuel level và recipe brew time của brewing stand.
-- Fingerprint phát hiện block/destination bị thay đổi giữa hai phase.
-- Runtime block lock chặn break/place, explosion, piston, hopper và inventory viewer trong transaction.
-- Plugin chunk ticket giữ chunk không unload giữa lúc SQLite đang ghi.
-- Một follow task chung cập nhật toàn bộ `BlockDisplay`; không tạo task riêng cho từng người chơi.
-- Tự restore về vị trí gốc khi logout, kick, chết hoặc plugin tắt nếu vị trí vẫn an toàn.
-- Crash recovery không ghi đè block khác và giữ payload trong database khi không thể xác định an toàn.
-- Protection probe qua `BlockBreakEvent`, `BlockCanBuildEvent` và hai custom event cancellable.
+### Động vật
 
-Block được hỗ trợ mặc định:
+Các động vật và sinh vật thụ động được hỗ trợ sẽ giữ lại dữ liệu như:
 
-| Nhóm | Block |
-| --- | --- |
-| Chest item | Chest đơn/đôi, Trapped Chest đơn/đôi |
-| Container transaction | Barrel, Hopper, Dispenser, Dropper, Shulker Box, Crafter |
-| Furnace | Furnace, Blast Furnace, Smoker |
-| Functional | Brewing Stand, Crafting Table, Smithing Table, Stonecutter, Cartography Table, Loom, Grindstone, Enchanting Table |
+- Máu, tuổi và biến thể.
+- Tên tùy chỉnh.
+- Equipment, inventory và Persistent Data Container.
 
-### Phantom Suppression
+### SoulAnchor
 
-- Cancel mọi `EntitySpawnEvent` có type `PHANTOM`, không phụ thuộc spawn reason.
-- Xóa Phantom đã load khi plugin khởi động.
-- Dọn Phantom khi world hoặc chunk được load.
-- Áp dụng cho mọi world, độc lập với blacklist Carry Blocks.
-- Có thể tắt riêng trong `config.yml` nếu cần bảo trì.
+Nếu server cài `SoulAnchor plugin`, người chơi có thể carry nguyên một Soul Anchor. Plugin giữ lại:
 
-## Yêu Cầu
+- UUID của anchor.
+- Chủ sở hữu và tên.
+- Danh sách người chơi được chia sẻ.
+
+Chỉ chủ sở hữu của anchor mới có thể bưng anchor đi
+
+SoulAnchor là tích hợp tùy chọn; Hao Han Utilities vẫn hoạt động bình thường khi không cài plugin này.
+
+## Block được hỗ trợ
+
+Các block mặc định gồm:
+
+- Chest, trapped chest, barrel và shulker box.
+- Furnace, blast furnace, smoker và brewing stand.
+- Hopper, dispenser, dropper và crafter.
+- Chiseled bookshelf, decorated pot, jukebox, beehive và bee nest.
+- Crafting table, smithing table, stonecutter, cartography table, loom, grindstone và enchanting table.
+
+Danh sách có thể chỉnh trong `plugins/HaoHanUtilities/config.yml`.
+
+## An toàn dữ liệu
+
+- Inventory và trạng thái block được lưu bằng snapshot của Minecraft/Paper.
+- Mỗi thao tác carry được ghi vào SQLite theo chuỗi `PREPARED → CARRIED → PLACING → PLACED/RESTORED`.
+- Nếu server crash hoặc người chơi thoát khi đang carry, trạng thái có thể được nạp lại từ database.
+- Dữ liệu được lưu tại `plugins/HaoHanUtilities/carry-blocks.db`.
+
+## Cài đặt
+
+1. Build hoặc tải `HaoHanUtilities-2.0.0.jar`.
+2. Chép file vào thư mục `plugins/` của server.
+3. Khởi động lại server.
+4. Chỉnh `plugins/HaoHanUtilities/config.yml` nếu cần.
+
+Yêu cầu:
 
 - Paper hoặc Purpur `1.21.11`.
 - Java `21`.
-- Không cần mod hoặc resource pack phía client.
-- Gradle không bắt buộc; repository đã có Gradle Wrapper.
+- Không sử dụng Bukkit `/reload` để kiểm tra các thao tác carry hoặc recovery.
 
-## Cài Đặt
+## Cấu hình nhanh
 
-1. Build plugin hoặc tải file JAR từ bản phát hành.
-2. Copy `HaoHanUtilities-1.1.0.jar` vào thư mục `plugins/`.
-3. Khởi động hoặc restart server; không dùng `/reload` của Bukkit để test transaction.
-4. Kiểm tra log `Hảo Hán Utilities enabled` và chỉnh `plugins/HaoHanUtilities/config.yml` nếu cần.
+```yaml
+carrying:
+  # 0.75 = giảm 25% tốc độ khi đang carry.
+  movement-speed-multiplier: 0.75
 
-Database được tạo tại:
+entities:
+  enabled: true
 
-```text
-plugins/HaoHanUtilities/carry-blocks.db
+phantom-suppression:
+  enabled: true
+  remove-existing: true
 ```
-
-## Cách Di Chuyển Chest
-
-1. Đảm bảo inventory có ít nhất một ô trống.
-2. Shift + chuột phải vào nửa chest muốn lấy.
-3. Item nhận được chứa inventory và block-state của đúng nửa đã chọn.
-4. Đặt item như chest bình thường; dữ liệu được khôi phục ngay khi block được đặt.
-
-Nếu chest đang là rương đôi, nửa không được chọn vẫn ở trong world dưới dạng chest đơn và giữ nguyên dữ liệu của nó.
-
-## Cách Sử Dụng Functional Block Carry
-
-1. Đảm bảo hai tay trống.
-2. Cúi người và right click block được hỗ trợ.
-3. Di chuyển tới vị trí mới; không sprint, glide, teleport hoặc combat khi đang bưng theo config mặc định.
-4. Right click mặt block tại vị trí muốn đặt.
-5. Plugin ghi phase `PLACING`, restore và verify payload trước khi kết thúc transaction.
 
 ## Lệnh
 
 | Lệnh | Mô tả |
 | --- | --- |
-| `/haohanutilities info` | Hiển thị version và module đang có. |
-| `/haohanutilities reload` | Reload config/messages và dọn Phantom đang load. |
-| `/haohanutilities status <player>` | Xem carry transaction đang hoạt động của người chơi. |
-| `/haohanutilities inspect <carryId>` | Xem metadata của một transaction. |
-| `/haohanutilities recover <player> original` | Khôi phục payload về vị trí gốc nếu chunk đã load và vị trí trống. |
-| `/haohanutilities recover <player> here` | Khôi phục payload tại vị trí admin đang nhìn. |
+| `/hhu info` | Hiển thị phiên bản và trạng thái plugin. |
+| `/hhu reload` | Tải lại config/messages và dọn Phantom đã tải. |
+| `/hhu status <player>` | Xem giao dịch carry hiện tại của người chơi. |
+| `/hhu inspect <carryId>` | Xem chi tiết một giao dịch carry. |
+| `/hhu recover <player> original` | Khôi phục vật về vị trí ban đầu. |
+| `/hhu recover <player> here` | Khôi phục vật tại vị trí admin đang nhìn. |
 
-Alias:
+Aliases: `/haohanutilities`, `/hhu`, `/carryblocks`, `/carryblock`, `/cb`.
 
-```text
-/hhu
-/carryblocks
-/carryblock
-/cb
-```
-
-## Permission
-
-| Permission | Mặc định | Mô tả |
-| --- | --- | --- |
-| `haohanutilities.carry.use` | true | Cho phép bưng và đặt block. |
-| `haohanutilities.admin` | op | Cho phép dùng lệnh quản trị/recovery. |
-| `haohanutilities.bypass.protection` | op | Bỏ qua protection probe; chỉ nên cấp cho admin tin cậy. |
-
-## Cấu Hình
-
-File cấu hình được tạo tại:
-
-```text
-plugins/HaoHanUtilities/config.yml
-```
-
-Các key chính:
-
-| Key | Mặc định | Mô tả |
-| --- | --- | --- |
-| `pickup.require-sneaking` | `true` | Yêu cầu người chơi cúi khi pickup. |
-| `pickup.require-empty-main-hand` | `true` | Yêu cầu tay chính trống. |
-| `pickup.require-empty-off-hand` | `true` | Yêu cầu tay phụ trống. |
-| `placement.require-solid-support` | `true` | Yêu cầu block đỡ rắn. |
-| `carrying.disable-teleport` | `true` | Chặn teleport khi đang bưng. |
-| `recovery.restore-on-startup` | `true` | Đọc transaction dang dở khi plugin enable. |
-| `chest-carry.enabled` | `true` | Bật cơ chế Chest item không animation/SQLite. |
-| `phantom-suppression.enabled` | `true` | Không cho Phantom spawn. |
-| `phantom-suppression.remove-existing` | `true` | Xóa Phantom đã tồn tại trong chunk được load. |
-| `worlds.mode` | `BLACKLIST` | Chế độ danh sách world của Carry Blocks. |
-| `blocks.allowed` | xem config | Allowlist block có thể bưng. |
-
-## Build Từ Mã Nguồn
+## Build
 
 Windows:
 
 ```powershell
-.\gradlew.bat clean test shadowJar
+.\gradlew.bat clean test build
 ```
 
 Linux/macOS:
 
 ```bash
-./gradlew clean test shadowJar
+./gradlew clean test build
 ```
 
-JAR deploy được tạo tại:
+File deploy được tạo tại:
 
 ```text
-build/libs/HaoHanUtilities-1.1.0.jar
+build/libs/HaoHanUtilities-2.0.0.jar
 ```
-
-## Ghi Chú Vận Hành
-
-- Luôn shutdown/restart server đúng cách khi cập nhật plugin.
-- Không xóa `carry-blocks.db`, file `-wal` hoặc `-shm` khi server đang chạy.
-- Nếu recovery fail-closed vì vị trí đã bị chiếm, dùng `status`, `inspect` và `recover`; plugin không tự ghi đè block lạ.
-- Backup world và thư mục plugin trước khi nâng cấp trên server production.
-- Các protection plugin có thể cancel protection probe; custom integration có thể listen `CarryBlockPickupEvent` và `CarryBlockPlaceEvent`.

@@ -1,7 +1,8 @@
 package vn.haohansmp.utilities.database;
 
 import vn.haohansmp.utilities.carry.BlockPosition;
-import vn.haohansmp.utilities.carry.CarriedBlockPayload;
+import vn.haohansmp.utilities.carry.CarryKind;
+import vn.haohansmp.utilities.carry.CarryPayload;
 import vn.haohansmp.utilities.carry.CarryRecord;
 import vn.haohansmp.utilities.carry.CarryStatus;
 
@@ -9,7 +10,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,8 +21,8 @@ public final class SQLiteCarryRepository implements CarryRepository {
             carry_id, player_uuid,
             original_world_uuid, original_x, original_y, original_z,
             placement_world_uuid, placement_x, placement_y, placement_z,
-            status, material, block_data, inventory_data, persistent_data,
-            custom_name_json, lock_value, properties_json, created_at, updated_at
+            status, kind, type_key, block_data, payload_data, visual_item,
+            source_entity_uuid, created_at, updated_at
             """;
 
     private final DatabaseManager database;
@@ -34,17 +34,17 @@ public final class SQLiteCarryRepository implements CarryRepository {
     @Override
     public void insertPrepared(CarryRecord record) throws SQLException {
         String sql = """
-                INSERT INTO carried_blocks (
+                INSERT INTO carried_objects (
                     carry_id, player_uuid,
                     original_world_uuid, original_x, original_y, original_z,
-                    status, material, block_data, inventory_data, persistent_data,
-                    custom_name_json, lock_value, properties_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, kind, type_key, block_data, payload_data, visual_item,
+                    source_entity_uuid, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
         try (Connection connection = database.openConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             BlockPosition original = record.originalPosition();
-            CarriedBlockPayload payload = record.payload();
+            CarryPayload payload = record.payload();
             statement.setString(1, record.carryId().toString());
             statement.setString(2, record.playerUuid().toString());
             statement.setString(3, original.worldUuid().toString());
@@ -52,15 +52,14 @@ public final class SQLiteCarryRepository implements CarryRepository {
             statement.setInt(5, original.y());
             statement.setInt(6, original.z());
             statement.setString(7, CarryStatus.PREPARED.name());
-            statement.setString(8, payload.material());
-            statement.setString(9, payload.blockData());
-            setBytes(statement, 10, payload.inventoryData());
-            setBytes(statement, 11, payload.persistentData());
-            statement.setString(12, payload.customNameJson());
-            statement.setString(13, payload.lock());
-            statement.setString(14, PropertiesJsonCodec.encode(payload.properties()));
-            statement.setLong(15, record.createdAt().toEpochMilli());
-            statement.setLong(16, record.updatedAt().toEpochMilli());
+            statement.setString(8, payload.kind().name());
+            statement.setString(9, payload.typeKey());
+            statement.setString(10, payload.blockData());
+            statement.setBytes(11, payload.data());
+            statement.setBytes(12, payload.visualItem());
+            statement.setString(13, payload.sourceEntityUuid() == null ? null : payload.sourceEntityUuid().toString());
+            statement.setLong(14, record.createdAt().toEpochMilli());
+            statement.setLong(15, record.updatedAt().toEpochMilli());
             statement.executeUpdate();
         }
     }
@@ -73,7 +72,7 @@ public final class SQLiteCarryRepository implements CarryRepository {
     @Override
     public void markPlacing(UUID carryId, BlockPosition destination) throws SQLException {
         String sql = """
-                UPDATE carried_blocks SET status = ?, placement_world_uuid = ?, placement_x = ?,
+                UPDATE carried_objects SET status = ?, placement_world_uuid = ?, placement_x = ?,
                 placement_y = ?, placement_z = ?, updated_at = ? WHERE carry_id = ?
                 """;
         try (Connection connection = database.openConnection();
@@ -106,7 +105,7 @@ public final class SQLiteCarryRepository implements CarryRepository {
 
     @Override
     public Optional<CarryRecord> findActiveByPlayer(UUID playerUuid) throws SQLException {
-        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_blocks WHERE player_uuid = ? "
+        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_objects WHERE player_uuid = ? "
                 + "AND status IN ('PREPARED','CARRIED','PLACING') ORDER BY updated_at DESC LIMIT 1";
         try (Connection connection = database.openConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -119,7 +118,7 @@ public final class SQLiteCarryRepository implements CarryRepository {
 
     @Override
     public Optional<CarryRecord> findById(UUID carryId) throws SQLException {
-        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_blocks WHERE carry_id = ?";
+        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_objects WHERE carry_id = ?";
         try (Connection connection = database.openConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, carryId.toString());
@@ -131,7 +130,7 @@ public final class SQLiteCarryRepository implements CarryRepository {
 
     @Override
     public List<CarryRecord> findUnfinished() throws SQLException {
-        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_blocks "
+        String sql = "SELECT " + SELECT_COLUMNS + " FROM carried_objects "
                 + "WHERE status IN ('PREPARED','CARRIED','PLACING') ORDER BY created_at";
         List<CarryRecord> records = new ArrayList<>();
         try (Connection connection = database.openConnection();
@@ -145,7 +144,7 @@ public final class SQLiteCarryRepository implements CarryRepository {
     }
 
     private void updateStatus(UUID carryId, CarryStatus status, String failureReason) throws SQLException {
-        String sql = "UPDATE carried_blocks SET status = ?, failure_reason = ?, updated_at = ? WHERE carry_id = ?";
+        String sql = "UPDATE carried_objects SET status = ?, failure_reason = ?, updated_at = ? WHERE carry_id = ?";
         try (Connection connection = database.openConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, status.name());
@@ -159,14 +158,6 @@ public final class SQLiteCarryRepository implements CarryRepository {
     private static void requireSingleUpdate(PreparedStatement statement, UUID carryId) throws SQLException {
         if (statement.executeUpdate() != 1) {
             throw new SQLException("Carry record not found: " + carryId);
-        }
-    }
-
-    private static void setBytes(PreparedStatement statement, int index, byte[] value) throws SQLException {
-        if (value == null) {
-            statement.setNull(index, Types.BLOB);
-        } else {
-            statement.setBytes(index, value);
         }
     }
 
@@ -189,14 +180,15 @@ public final class SQLiteCarryRepository implements CarryRepository {
                 ),
                 placement,
                 CarryStatus.valueOf(results.getString("status")),
-                new CarriedBlockPayload(
-                        results.getString("material"),
+                new CarryPayload(
+                        CarryKind.valueOf(results.getString("kind")),
+                        results.getString("type_key"),
                         results.getString("block_data"),
-                        results.getBytes("inventory_data"),
-                        results.getBytes("persistent_data"),
-                        results.getString("custom_name_json"),
-                        results.getString("lock_value"),
-                        PropertiesJsonCodec.decode(results.getString("properties_json"))
+                        results.getBytes("payload_data"),
+                        results.getBytes("visual_item"),
+                        results.getString("source_entity_uuid") == null
+                                ? null
+                                : UUID.fromString(results.getString("source_entity_uuid"))
                 ),
                 Instant.ofEpochMilli(results.getLong("created_at")),
                 Instant.ofEpochMilli(results.getLong("updated_at"))

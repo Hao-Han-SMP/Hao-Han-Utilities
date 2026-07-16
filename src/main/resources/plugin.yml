@@ -3,9 +3,10 @@ version: '${version}'
 main: vn.haohansmp.utilities.HaoHanUtilitiesPlugin
 api-version: '1.21.11'
 author: Hao Han SMP
-description: Carry functional blocks safely and remove Phantom spawns from every world.
+description: Carry blocks and animals safely with crash recovery.
 
 softdepend:
+  - SoulAnchor
   - WorldGuard
   - GriefPrevention
   - BlockLocker
@@ -13,17 +14,17 @@ softdepend:
 
 commands:
   haohanutilities:
-    description: Hảo Hán Utilities administration command
+    description: Lệnh quản trị Hảo Hán Utilities
     usage: /haohanutilities <info|reload|status|inspect|recover>
     aliases: [hhu, carryblocks, carryblock, cb]
 
 permissions:
   haohanutilities.carry.use:
-    description: Cho phép bưng và đặt block
+    description: Cho phép carry block và động vật
     default: true
   haohanutilities.admin:
     description: Quản trị Hảo Hán Utilities
     default: op
   haohanutilities.bypass.protection:
-    description: Bỏ qua protection probe khi bưng hoặc đặt block
+    description: Bỏ qua kiểm tra protection khi carry block
     default: op

@@ -4,162 +4,186 @@ import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import vn.haohansmp.utilities.carry.BlockPosition;
+import vn.haohansmp.utilities.carry.CarryKind;
 import vn.haohansmp.utilities.carry.CarryRecord;
 import vn.haohansmp.utilities.carry.CarryService;
+import vn.haohansmp.utilities.carry.CarrySnapshotService;
 import vn.haohansmp.utilities.carry.CarryStatus;
-import vn.haohansmp.utilities.carry.PayloadVerifier;
 import vn.haohansmp.utilities.database.CarryRepository;
-import vn.haohansmp.utilities.serializer.BlockSerializerRegistry;
+import vn.haohansmp.utilities.integration.SoulAnchorIntegration;
 
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 
 public final class RecoveryService {
     private final JavaPlugin plugin;
-    private final ExecutorService databaseExecutor;
     private final CarryRepository repository;
     private final CarryService carryService;
-    private final BlockSerializerRegistry serializers;
+    private final CarrySnapshotService snapshots;
+    private final SoulAnchorIntegration soulAnchors;
 
-    public RecoveryService(JavaPlugin plugin, ExecutorService databaseExecutor,
-                           CarryRepository repository, CarryService carryService,
-                           BlockSerializerRegistry serializers) {
+    public RecoveryService(
+            JavaPlugin plugin,
+            CarryRepository repository,
+            CarryService carryService,
+            CarrySnapshotService snapshots,
+            SoulAnchorIntegration soulAnchors
+    ) {
         this.plugin = plugin;
-        this.databaseExecutor = databaseExecutor;
         this.repository = repository;
         this.carryService = carryService;
-        this.serializers = serializers;
+        this.snapshots = snapshots;
+        this.soulAnchors = soulAnchors;
     }
 
     public void recoverOnStartup() {
         if (!plugin.getConfig().getBoolean("recovery.restore-on-startup", true)) {
             return;
         }
-        database(repository::findUnfinished).whenComplete((records, error) -> {
-            if (error != null) {
-                plugin.getLogger().log(Level.SEVERE, "Cannot load unfinished carry records", unwrap(error));
-                return;
+        try {
+            for (CarryRecord record : repository.findUnfinished()) {
+                evaluate(record);
             }
-            sync(() -> records.forEach(this::evaluate));
-        });
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.SEVERE, "Cannot load unfinished carry records", exception);
+        }
+        Bukkit.getOnlinePlayers().forEach(this::recoverPlayer);
     }
 
     public void recoverPlayer(Player player) {
-        database(() -> repository.findActiveByPlayer(player.getUniqueId())).whenComplete((record, error) -> {
-            if (error != null) {
-                plugin.getLogger().log(Level.SEVERE, "Cannot recover carry for " + player.getUniqueId(), unwrap(error));
+        try {
+            var active = repository.findActiveByPlayer(player.getUniqueId());
+            if (active.isEmpty()) {
                 return;
             }
-            record.ifPresent(value -> sync(() -> evaluate(value)));
-        });
+            CarryRecord record = active.get();
+            if (record.status() != CarryStatus.CARRIED) {
+                evaluate(record);
+                record = repository.findActiveByPlayer(player.getUniqueId()).orElse(null);
+            }
+            if (record != null && record.status() == CarryStatus.CARRIED) {
+                carryService.activate(record, player);
+            }
+        } catch (SQLException exception) {
+            plugin.getLogger().log(Level.SEVERE, "Cannot recover carry for " + player.getUniqueId(), exception);
+        }
     }
 
-    private void evaluate(CarryRecord record) {
-        if (!Bukkit.isPrimaryThread()) {
-            throw new IllegalStateException("Recovery world checks must run on the server thread");
-        }
+    private void evaluate(CarryRecord record) throws SQLException {
         switch (record.status()) {
             case PREPARED -> recoverPrepared(record);
-            case CARRIED -> activateIfOnline(record);
             case PLACING -> recoverPlacing(record);
-            default -> { }
+            default -> {
+            }
         }
     }
 
-    private void recoverPrepared(CarryRecord record) {
+    private void recoverPrepared(CarryRecord record) throws SQLException {
+        if (record.payload().kind() == CarryKind.ENTITY) {
+            loadChunk(record.originalPosition());
+            Entity source = record.payload().sourceEntityUuid() == null
+                    ? null
+                    : Bukkit.getEntity(record.payload().sourceEntityUuid());
+            if (source != null && source.isValid()) {
+                repository.markRestored(record.carryId());
+            } else {
+                repository.markCarried(record.carryId());
+            }
+            return;
+        }
+
         Block original = loadedBlock(record.originalPosition());
         if (original == null) {
             return;
         }
-        String current = original.getType().getKey().asString();
-        if (current.equals(record.payload().material())
-                && PayloadVerifier.matchesBlock(original, record.payload(), serializers)) {
-            databaseVoid(() -> repository.markRestored(record.carryId()));
+        if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {
+            if (!soulAnchors.isAvailable()) {
+                return;
+            }
+            if (soulAnchors.matches(original, record.payload())) {
+                repository.markRestored(record.carryId());
+            } else if (original.getType() == Material.AIR) {
+                repository.markCarried(record.carryId());
+            } else if (soulAnchors.matchesBackingBlock(original, record.payload())) {
+                original.setType(Material.AIR, true);
+                repository.markCarried(record.carryId());
+            } else {
+                repository.markFailed(record.carryId(), "original position occupied during Soul Anchor recovery");
+            }
+            return;
+        }
+        if (snapshots.matchesSourceBlock(original, record.payload())) {
+            repository.markRestored(record.carryId());
         } else if (original.getType() == Material.AIR) {
-            databaseVoid(() -> repository.markCarried(record.carryId()));
-            activateIfOnline(record);
+            repository.markCarried(record.carryId());
         } else {
-            databaseVoid(() -> repository.markFailed(record.carryId(), "original position occupied during PREPARED recovery"));
+            repository.markFailed(record.carryId(), "original position occupied during PREPARED recovery");
         }
     }
 
-    private void recoverPlacing(CarryRecord record) {
+    private void recoverPlacing(CarryRecord record) throws SQLException {
         if (record.placementPosition() == null) {
-            databaseVoid(() -> repository.markCarried(record.carryId()));
-            activateIfOnline(record);
+            repository.markCarried(record.carryId());
             return;
         }
+        if (record.payload().kind() == CarryKind.ENTITY) {
+            Entity placed = snapshots.findPlacedEntity(record.placementPosition(), record.carryId());
+            if (placed != null) {
+                repository.markPlaced(record.carryId());
+                snapshots.clearPlacedEntityMarker(placed);
+            } else {
+                repository.markCarried(record.carryId());
+            }
+            return;
+        }
+
         Block destination = loadedBlock(record.placementPosition());
         if (destination == null) {
             return;
         }
-        String current = destination.getType().getKey().asString();
-        if (current.equals(record.payload().material())
-                && PayloadVerifier.matchesBlock(destination, record.payload(), serializers)) {
-            databaseVoid(() -> repository.markPlaced(record.carryId()));
+        if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {
+            if (!soulAnchors.isAvailable()) {
+                return;
+            }
+            if (soulAnchors.matches(destination, record.payload())) {
+                repository.markPlaced(record.carryId());
+            } else if (soulAnchors.matchesBackingBlock(destination, record.payload())) {
+                soulAnchors.restore(destination, record.payload());
+                repository.markPlaced(record.carryId());
+            } else if (destination.getType() == Material.AIR) {
+                repository.markCarried(record.carryId());
+            } else {
+                repository.markFailed(record.carryId(), "destination occupied during Soul Anchor recovery");
+            }
+            return;
+        }
+        if (snapshots.matchesPlacedBlock(destination, record.payload())) {
+            repository.markPlaced(record.carryId());
         } else if (destination.getType() == Material.AIR) {
-            databaseVoid(() -> repository.markCarried(record.carryId()));
-            activateIfOnline(record);
+            repository.markCarried(record.carryId());
         } else {
-            databaseVoid(() -> repository.markFailed(record.carryId(), "destination occupied during PLACING recovery"));
+            repository.markFailed(record.carryId(), "destination occupied during PLACING recovery");
         }
     }
 
-    private void activateIfOnline(CarryRecord record) {
-        Player player = Bukkit.getPlayer(record.playerUuid());
-        if (player != null && player.isOnline()) {
-            carryService.activate(record, player);
+    private static void loadChunk(BlockPosition position) {
+        World world = Bukkit.getWorld(position.worldUuid());
+        if (world != null) {
+            world.getChunkAt(position.x() >> 4, position.z() >> 4);
         }
     }
 
     private static Block loadedBlock(BlockPosition position) {
         World world = Bukkit.getWorld(position.worldUuid());
-        if (world == null || !world.isChunkLoaded(position.x() >> 4, position.z() >> 4)) {
+        if (world == null) {
             return null;
         }
+        world.getChunkAt(position.x() >> 4, position.z() >> 4);
         return position.block(world);
     }
-
-    private <T> CompletableFuture<T> database(SqlSupplier<T> supplier) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return supplier.get();
-            } catch (SQLException exception) {
-                throw new CompletionException(exception);
-            }
-        }, databaseExecutor);
-    }
-
-    private void databaseVoid(SqlRunnable runnable) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                runnable.run();
-            } catch (SQLException exception) {
-                throw new CompletionException(exception);
-            }
-        }, databaseExecutor).exceptionally(error -> {
-            plugin.getLogger().log(Level.SEVERE, "Recovery database update failed", unwrap(error));
-            return null;
-        });
-    }
-
-    private void sync(Runnable task) {
-        if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, task);
-    }
-
-    private static Throwable unwrap(Throwable error) {
-        return error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
-    }
-
-    @FunctionalInterface private interface SqlSupplier<T> { T get() throws SQLException; }
-    @FunctionalInterface private interface SqlRunnable { void run() throws SQLException; }
 }

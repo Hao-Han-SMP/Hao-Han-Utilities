@@ -2,8 +2,6 @@
 
 # Hao Han Utilities
 
-Server-side utilities for Hao Han SMP: safely carry functional blocks and remove Phantoms from every world.
-
 [![Minecraft](https://img.shields.io/badge/Minecraft-1.21.11-62B47A?style=for-the-badge&logo=minecraft&logoColor=white)](https://www.minecraft.net/)
 [![Paper](https://img.shields.io/badge/Paper-API-222222?style=for-the-badge&logo=paper&logoColor=white)](https://papermc.io/)
 [![Purpur](https://img.shields.io/badge/Purpur-Compatible-8A4FFF?style=for-the-badge)](https://purpurmc.org/)
@@ -17,95 +15,125 @@ Language: [Tiếng Việt](README.md) | English
 
 ## Overview
 
-Hao Han Utilities is a Paper/Purpur `1.21.11` plugin with two modules:
+Hao Han Utilities is a Paper/Purpur `1.21.11` plugin focused on two features:
 
-- **Chest Carry:** sneak and right-click to turn the selected Chest/Trapped Chest half into an item containing its complete state, then place it normally.
-- **Functional Block Carry:** transactional carrying for barrels, furnaces, brewing stands and other functional blocks.
-- **Phantom Suppression:** cancels every Phantom spawn and removes existing Phantoms when the plugin, a world, or a chunk loads.
+- **Carry:** pick up functional blocks or passive creatures, move them, and place them somewhere else.
+- **Phantom Suppression:** cancel Phantom spawns and remove existing Phantoms from loaded worlds.
 
-Chest Carry uses `BlockStateMeta`, matching Creative's copied block-state behavior, and needs no SQLite or animation. Other functional blocks keep the SQLite transaction and `BlockDisplay` recovery flow.
+The plugin is completely server-side and requires no client mod or resource pack.
 
-## Features
+## How to Carry
 
-- Chest/Trapped Chest becomes one data-bearing item when sneak-right-clicked.
-- The selected half keeps its 27 slots, custom name, lock, PDC and loot state.
-- Removing one half of a double chest safely converts the other half to a single chest while preserving its own 27 slots.
-- Placing the item reapplies its `BlockStateMeta`; both regular and trapped double chests are supported.
-- Durable `PREPARED → CARRIED → PLACING → PLACED/RESTORED` SQLite journal for non-chest functional blocks.
-- Inventory, item metadata, block PDC, custom name, lock and `BlockData` preservation.
-- Furnace/smoker/blast-furnace progress and brewing-stand state preservation.
-- Runtime locks, fingerprints, plugin chunk tickets and restored-payload verification.
-- Crash, logout, death and plugin-disable recovery without overwriting unknown blocks.
-- One shared `BlockDisplay` follow task for every active carrier.
-- Standard protection probes plus cancellable custom pickup/place events.
-- Global Phantom spawn cancellation and cleanup of already-loaded Phantoms.
+### Pick something up
 
-Supported blocks include single/double chests, trapped chests, barrels, furnaces, smokers, blast furnaces, hoppers, dispensers, droppers, brewing stands, crafters, shulker boxes and the functional tables listed in `config.yml`.
+1. Make sure both hands are empty.
+2. Hold `Shift` to sneak.
+3. Right-click the block or creature you want to carry.
 
-## Requirements
+A player can carry one object at a time and moves more slowly while carrying it.
 
-- Paper or Purpur `1.21.11`.
-- Java `21`.
-- No client mod or resource pack.
+### Place it down
+
+1. Look at the destination.
+2. Right-click a block face.
+3. The carried object is placed against the selected face.
+
+### Creatures
+
+Supported passive creatures preserve data such as:
+
+- Health, age, and variant.
+- Custom names.
+- Equipment, inventories, and Persistent Data Containers.
+
+### SoulAnchor
+
+When the server has the `SoulAnchor plugin` installed, players can carry a complete Soul Anchor while preserving:
+
+- Its anchor UUID.
+- Owner and name.
+- Shared-player list.
+
+Only the anchor's owner can pick it up and move it.
+
+SoulAnchor support is optional; Hao Han Utilities works normally without it.
+
+## Supported Blocks
+
+Default supported blocks include:
+
+- Chests, trapped chests, barrels, and shulker boxes.
+- Furnaces, blast furnaces, smokers, and brewing stands.
+- Hoppers, dispensers, droppers, and crafters.
+- Chiseled bookshelves, decorated pots, jukeboxes, beehives, and bee nests.
+- Crafting, smithing, stonecutting, cartography, loom, grindstone, and enchanting tables.
+
+The list can be changed in `plugins/HaoHanUtilities/config.yml`.
+
+## Data Safety
+
+- Block inventories and state are stored using Minecraft/Paper snapshots.
+- Every carry operation is journaled in SQLite as `PREPARED → CARRIED → PLACING → PLACED/RESTORED`.
+- If the server crashes or a player disconnects while carrying something, the state can be loaded from the database.
+- The database is stored at `plugins/HaoHanUtilities/carry-blocks.db`.
 
 ## Installation
 
-1. Build or download `HaoHanUtilities-1.1.0.jar`.
-2. Copy it to the server's `plugins/` directory.
-3. Restart the server. Do not use Bukkit `/reload` to test transaction behavior.
+1. Build or download `HaoHanUtilities-2.0.0.jar`.
+2. Copy it into the server's `plugins/` directory.
+3. Restart the server.
 4. Review `plugins/HaoHanUtilities/config.yml`.
 
-The functional-block transaction database is stored at `plugins/HaoHanUtilities/carry-blocks.db`; Chest Carry does not use it.
+Requirements:
 
-## Moving a Chest
+- Paper or Purpur `1.21.11`.
+- Java `21`.
+- Do not use Bukkit `/reload` when testing carry transactions or recovery.
 
-1. Keep at least one inventory slot empty.
-2. Sneak and right-click the chest half you want to move.
-3. The resulting item contains the selected half's inventory and block-state data.
-4. Place the item normally to restore its contents and metadata.
+## Quick Configuration
 
-For a double chest, the unselected half remains in the world as a single chest with its own contents preserved.
+```yaml
+carrying:
+  # 0.75 means 25% slower while carrying.
+  movement-speed-multiplier: 0.75
+
+entities:
+  enabled: true
+
+phantom-suppression:
+  enabled: true
+  remove-existing: true
+```
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `/haohanutilities info` | Show the plugin version and modules. |
-| `/haohanutilities reload` | Reload configuration/messages and clean loaded Phantoms. |
-| `/haohanutilities status <player>` | Show a player's active carry transaction. |
-| `/haohanutilities inspect <carryId>` | Inspect transaction metadata. |
-| `/haohanutilities recover <player> original` | Restore to the original loaded, empty location. |
-| `/haohanutilities recover <player> here` | Restore at the admin's targeted location. |
+| `/hhu info` | Show the plugin version and status. |
+| `/hhu reload` | Reload config/messages and clean loaded Phantoms. |
+| `/hhu status <player>` | Show a player's active carry transaction. |
+| `/hhu inspect <carryId>` | Inspect a carry transaction. |
+| `/hhu recover <player> original` | Restore an object to its original location. |
+| `/hhu recover <player> here` | Restore an object at the admin's targeted location. |
 
-Aliases: `/hhu`, `/carryblocks`, `/carryblock`, `/cb`.
-
-## Permissions
-
-| Permission | Default | Description |
-| --- | --- | --- |
-| `haohanutilities.carry.use` | true | Carry and place supported blocks. |
-| `haohanutilities.admin` | op | Use administration and recovery commands. |
-| `haohanutilities.bypass.protection` | op | Bypass protection probes; grant only to trusted admins. |
+Aliases: `/haohanutilities`, `/hhu`, `/carryblocks`, `/carryblock`, `/cb`.
 
 ## Build
 
 Windows:
 
 ```powershell
-.\gradlew.bat clean test shadowJar
+.\gradlew.bat clean test build
 ```
 
 Linux/macOS:
 
 ```bash
-./gradlew clean test shadowJar
+./gradlew clean test build
 ```
 
-The deployable JAR is written to `build/libs/HaoHanUtilities-1.1.0.jar`.
+The deployable JAR is written to:
 
-## Operations
-
-- Do not delete the SQLite database, WAL or SHM files while the server is running.
-- Recovery fails closed when a location is occupied; use the status, inspect and recover commands.
-- Back up the world and plugin data before production upgrades.
-- Protection integrations may cancel the standard probes or listen to `CarryBlockPickupEvent` and `CarryBlockPlaceEvent`.
+```text
+build/libs/HaoHanUtilities-2.0.0.jar
+```

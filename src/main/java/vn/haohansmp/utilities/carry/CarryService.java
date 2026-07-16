@@ -1,75 +1,63 @@
 package vn.haohansmp.utilities.carry;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.RayTraceResult;
 import vn.haohansmp.utilities.config.MessageService;
 import vn.haohansmp.utilities.database.CarryRepository;
-import vn.haohansmp.utilities.listener.ViewerTracker;
+import vn.haohansmp.utilities.integration.SoulAnchorIntegration;
 import vn.haohansmp.utilities.protection.ProtectionService;
 import vn.haohansmp.utilities.render.CarryRenderer;
-import vn.haohansmp.utilities.serializer.BlockSerializer;
-import vn.haohansmp.utilities.serializer.BlockSerializerRegistry;
 
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public final class CarryService {
     private final JavaPlugin plugin;
-    private final ExecutorService databaseExecutor;
     private final CarryRepository repository;
     private final CarrySessionManager sessions;
     private final CarryValidator validator;
-    private final CarryLockManager locks;
-    private final ViewerTracker viewers;
-    private final BlockSerializerRegistry serializers;
+    private final CarrySnapshotService snapshots;
+    private final SoulAnchorIntegration soulAnchors;
     private final ProtectionService protection;
     private final CarryRenderer renderer;
     private final MessageService messages;
-    private final FingerprintService fingerprints = new FingerprintService();
-    private final Set<UUID> pendingPlayers = ConcurrentHashMap.newKeySet();
-    private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
-    private volatile boolean accepting = true;
-    private BukkitTask timeoutTask;
+    private boolean accepting = true;
 
     public CarryService(
             JavaPlugin plugin,
-            ExecutorService databaseExecutor,
             CarryRepository repository,
             CarrySessionManager sessions,
             CarryValidator validator,
-            CarryLockManager locks,
-            ViewerTracker viewers,
-            BlockSerializerRegistry serializers,
+            CarrySnapshotService snapshots,
+            SoulAnchorIntegration soulAnchors,
             ProtectionService protection,
             CarryRenderer renderer,
             MessageService messages
     ) {
         this.plugin = plugin;
-        this.databaseExecutor = databaseExecutor;
         this.repository = repository;
         this.sessions = sessions;
         this.validator = validator;
-        this.locks = locks;
-        this.viewers = viewers;
-        this.serializers = serializers;
+        this.snapshots = snapshots;
+        this.soulAnchors = soulAnchors;
         this.protection = protection;
         this.renderer = renderer;
         this.messages = messages;
@@ -79,138 +67,112 @@ public final class CarryService {
         return sessions.isCarrying(playerUuid);
     }
 
-    public void start() {
-        requireMainThread();
-        if (timeoutTask == null) {
-            timeoutTask = Bukkit.getScheduler().runTaskTimer(plugin, this::restoreExpiredSessions, 20L, 20L);
-        }
-    }
-
     public Optional<CarrySession> session(UUID playerUuid) {
         return sessions.get(playerUuid);
     }
 
-    public void pickup(Player player, Block block) {
+    public void pickupBlock(Player player, Block block) {
         requireMainThread();
-        UUID playerUuid = player.getUniqueId();
         if (!accepting) {
             messages.send(player, "plugin-stopping");
             return;
         }
-        if (cooldowns.getOrDefault(playerUuid, 0L) > System.currentTimeMillis()) {
-            messages.send(player, "cooldown");
-            return;
-        }
-
-        String denied = validator.validatePickup(player, block, pendingPlayers.contains(playerUuid));
+        String denied = validator.validateBlockPickup(player, block);
         if (denied != null) {
             messages.send(player, denied);
             return;
         }
-        if (!pendingPlayers.add(playerUuid)) {
-            messages.send(player, "already-carrying");
+
+        boolean soulAnchor = soulAnchors.isAnchor(block);
+        UUID carryId = UUID.randomUUID();
+        boolean canPickup;
+        try {
+            canPickup = soulAnchor
+                    ? soulAnchors.runProtectionProbe(
+                            block,
+                            () -> protection.canPickupBlock(player, block, carryId)
+                    )
+                    : protection.canPickupBlock(player, block, carryId);
+        } catch (RuntimeException exception) {
+            logFailure("Cannot check block protection", carryId, exception);
+            messages.send(player, "pickup-failed");
+            return;
+        }
+        if (!canPickup) {
+            messages.send(player, "no-permission");
+            return;
+        }
+
+        CarryPayload payload;
+        try {
+            payload = soulAnchor ? soulAnchors.capture(block) : snapshots.captureBlock(block);
+        } catch (RuntimeException exception) {
+            logFailure("Cannot snapshot block", carryId, exception);
+            messages.send(player, "snapshot-error");
+            return;
+        }
+
+        CarryRecord record = preparedRecord(carryId, player, BlockPosition.from(block), payload);
+        if (!insertPrepared(player, record)) {
+            return;
+        }
+
+        try {
+            if (payload.kind() == CarryKind.SOUL_ANCHOR) {
+                soulAnchors.removeForCarry(block, payload);
+            }
+            block.setType(Material.AIR, true);
+            activateNewSession(record, player);
+            markCarriedBestEffort(record);
+            messages.send(player, "pickup-success", Map.of("block", displayType(payload.typeKey())));
+        } catch (RuntimeException exception) {
+            logFailure("Block pickup failed", carryId, exception);
+            rollbackPickup(record);
+            messages.send(player, "pickup-failed");
+        }
+    }
+
+    public void pickupEntity(Player player, Entity entity) {
+        requireMainThread();
+        Block anchorBlock = soulAnchors.backingBlock(entity);
+        if (anchorBlock != null) {
+            pickupBlock(player, anchorBlock);
+            return;
+        }
+        if (!accepting) {
+            messages.send(player, "plugin-stopping");
+            return;
+        }
+        String denied = validator.validateEntityPickup(player, entity);
+        if (denied != null) {
+            messages.send(player, denied);
             return;
         }
 
         UUID carryId = UUID.randomUUID();
-        BlockPosition position = BlockPosition.from(block);
+        CarryPayload payload;
         try {
-            if (!protection.canPickup(player, block, carryId)) {
-                messages.send(player, "no-permission");
-                pendingPlayers.remove(playerUuid);
-                return;
-            }
-            if (!locks.lock(position)) {
-                pendingPlayers.remove(playerUuid);
-                messages.send(player, "block-is-busy");
-                return;
-            }
-
-            BlockState snapshot = block.getState();
-            BlockSerializer serializer = serializers.serializerFor(snapshot);
-            CarriedBlockPayload payload = serializer.capture(block, snapshot);
-            BlockFingerprint fingerprint = fingerprints.create(block);
-            Instant now = Instant.now();
-            CarryRecord record = new CarryRecord(carryId, playerUuid, position, null,
-                    CarryStatus.PREPARED, payload, now, now);
-
-            database(() -> repository.insertPrepared(record)).whenComplete((ignored, error) -> sync(() -> {
-                if (error != null) {
-                    logFailure("PREPARED write failed", carryId, error);
-                    messages.sendIfOnline(Bukkit.getPlayer(playerUuid), "database-error");
-                    finishPickupAttempt(playerUuid, position);
-                    return;
-                }
-                completePickup(record, fingerprint);
-            }));
+            payload = snapshots.captureEntity(entity);
         } catch (RuntimeException exception) {
-            logFailure("Pickup snapshot failed", carryId, exception);
+            logFailure("Cannot snapshot entity", carryId, exception);
             messages.send(player, "snapshot-error");
-            finishPickupAttempt(playerUuid, position);
-        }
-    }
-
-    private void completePickup(CarryRecord record, BlockFingerprint expected) {
-        UUID playerUuid = record.playerUuid();
-        BlockPosition position = record.originalPosition();
-        Player player = Bukkit.getPlayer(playerUuid);
-        World world = Bukkit.getWorld(position.worldUuid());
-        if (player == null || !player.isOnline() || world == null
-                || !world.isChunkLoaded(position.x() >> 4, position.z() >> 4)) {
-            database(() -> repository.markRestored(record.carryId()));
-            finishPickupAttempt(playerUuid, position);
             return;
         }
 
-        Block block = position.block(world);
-        if (!expected.equals(fingerprints.create(block)) || viewers.hasViewers(position)
-                || !protection.canPickupRecheck(player, block, record.carryId())) {
-            database(() -> repository.markRestored(record.carryId()));
-            messages.send(player, "block-changed");
-            finishPickupAttempt(playerUuid, position);
+        CarryRecord record = preparedRecord(carryId, player, BlockPosition.from(entity.getLocation().getBlock()), payload);
+        if (!insertPrepared(player, record)) {
             return;
         }
 
-        BlockSerializer serializer = serializers.serializerFor(block.getState());
         try {
-            block.setType(Material.AIR, false);
-            CarrySession session = new CarrySession(record.carryId(), playerUuid, position, record.payload());
-            if (!sessions.add(session)) {
-                serializer.restore(block, record.payload());
-                database(() -> repository.markRestored(record.carryId()));
-                messages.send(player, "already-carrying");
-                return;
-            }
-            try {
-                renderer.spawn(player, session);
-            } catch (RuntimeException renderFailure) {
-                sessions.remove(playerUuid);
-                serializer.restore(block, record.payload());
-                database(() -> repository.markRestored(record.carryId()));
-                throw renderFailure;
-            }
-
-            database(() -> repository.markCarried(record.carryId())).whenComplete((ignored, error) -> {
-                if (error != null) logFailure("CARRIED write failed", record.carryId(), error);
-            });
-            cooldowns.put(playerUuid, System.currentTimeMillis()
-                    + plugin.getConfig().getLong("pickup.cooldown-milliseconds", 500L));
-            audit(record.carryId(), player, record.payload().material(), "PREPARED", "CARRIED", position, null);
-            messages.send(player, "pickup-success", Map.of("block", displayMaterial(record.payload().material())));
+            entity.remove();
+            activateNewSession(record, player);
+            markCarriedBestEffort(record);
+            messages.send(player, "entity-pickup-success", Map.of("entity", displayType(payload.typeKey())));
         } catch (RuntimeException exception) {
-            logFailure("Pickup remove/render failed", record.carryId(), exception);
-            if (block.isEmpty()) {
-                try {
-                    serializer.restore(block, record.payload());
-                    database(() -> repository.markRestored(record.carryId()));
-                } catch (RuntimeException rollbackFailure) {
-                    logFailure("Pickup rollback failed", record.carryId(), rollbackFailure);
-                    database(() -> repository.markFailed(record.carryId(), "pickup rollback failed"));
-                }
-            }
+            logFailure("Entity pickup failed", carryId, exception);
+            rollbackPickup(record);
             messages.send(player, "pickup-failed");
-        } finally {
-            finishPickupAttempt(playerUuid, position);
         }
     }
 
@@ -219,109 +181,97 @@ public final class CarryService {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) {
             return;
         }
-        Player player = event.getPlayer();
+        place(event.getPlayer(), event.getClickedBlock(), event.getBlockFace());
+    }
+
+    public void handleObstructedPlacement(Player player) {
+        requireMainThread();
+        double maximumDistance = plugin.getConfig().getDouble("placement.maximum-distance", 5.0);
+        RayTraceResult hit = player.rayTraceBlocks(maximumDistance, FluidCollisionMode.NEVER);
+        if (hit == null || hit.getHitBlock() == null || hit.getHitBlockFace() == null) {
+            return;
+        }
+        place(player, hit.getHitBlock(), hit.getHitBlockFace());
+    }
+
+    private void place(Player player, Block clicked, BlockFace clickedFace) {
         CarrySession session = sessions.get(player.getUniqueId()).orElse(null);
         if (session == null) {
             return;
         }
-        event.setCancelled(true);
         if (!session.beginPlacement()) {
             return;
         }
 
-        Block clicked = event.getClickedBlock();
-        Block destination = clicked.isReplaceable() ? clicked : clicked.getRelative(event.getBlockFace());
-        String denied = validator.validatePlacement(player, session, destination);
+        Block destination = clicked.isReplaceable() ? clicked : clicked.getRelative(clickedFace);
+        String denied = validator.validatePlacement(player, session, destination, clickedFace);
         if (denied != null) {
             session.cancelPlacement();
             messages.send(player, denied);
             return;
         }
-        BlockData data = Bukkit.createBlockData(session.payload().blockData());
-        if (!protection.canPlace(player, destination, data, session.payload())) {
-            session.cancelPlacement();
-            messages.send(player, "no-permission");
-            return;
+
+        if (session.payload().kind().isBlockLike()) {
+            BlockData data = CarrySnapshotService.placementBlockData(
+                    player,
+                    session.payload(),
+                    clickedFace
+            );
+            if (!protection.canPlaceBlock(player, destination, data, session.payload())) {
+                session.cancelPlacement();
+                messages.send(player, "no-permission");
+                return;
+            }
         }
 
         BlockPosition position = BlockPosition.from(destination);
-        if (!locks.lock(position)) {
-            session.cancelPlacement();
-            messages.send(player, "block-is-busy");
-            return;
-        }
-        BlockFingerprint destinationFingerprint = fingerprints.create(destination);
-        database(() -> repository.markPlacing(session.carryId(), position)).whenComplete((ignored, error) -> sync(() -> {
-            if (error != null) {
-                logFailure("PLACING write failed", session.carryId(), error);
-                session.cancelPlacement();
-                locks.unlock(position);
-                messages.sendIfOnline(Bukkit.getPlayer(session.playerUuid()), "database-error");
-                return;
-            }
-            completePlacement(session, position, destinationFingerprint);
-        }));
-    }
-
-    private void completePlacement(CarrySession session, BlockPosition position, BlockFingerprint expected) {
-        Player player = Bukkit.getPlayer(session.playerUuid());
-        World world = Bukkit.getWorld(position.worldUuid());
-        if (player == null || !player.isOnline() || world == null
-                || !world.isChunkLoaded(position.x() >> 4, position.z() >> 4)) {
-            rollbackPlacementState(session, position, player, "player or chunk unavailable");
-            return;
-        }
-        Block destination = position.block(world);
-        if (!expected.equals(fingerprints.create(destination))) {
-            rollbackPlacementState(session, position, player, "destination changed");
-            messages.send(player, "destination-changed");
-            return;
-        }
-
         try {
-            destination.setBlockData(Bukkit.createBlockData(session.payload().blockData()), false);
-            BlockSerializer serializer = serializers.serializerFor(destination.getState());
-            serializer.restore(destination, session.payload());
-            CarriedBlockPayload verified = serializer.capture(destination, destination.getState());
-            if (!PayloadVerifier.matches(session.payload(), verified)) {
-                throw new IllegalStateException("Restored payload verification failed");
-            }
+            repository.markPlacing(session.carryId(), position);
+        } catch (SQLException exception) {
+            session.cancelPlacement();
+            logFailure("Cannot write PLACING state", session.carryId(), exception);
+            messages.send(player, "database-error");
+            return;
+        }
 
+        Entity placedEntity = null;
+        try {
+            if (session.payload().kind() == CarryKind.BLOCK) {
+                snapshots.restoreBlock(player, destination, session.payload(), clickedFace);
+            } else if (session.payload().kind() == CarryKind.SOUL_ANCHOR) {
+                soulAnchors.restore(destination, session.payload());
+            } else {
+                Location location = destination.getLocation().add(0.5, 0.0, 0.5);
+                location.setYaw(player.getYaw());
+                placedEntity = snapshots.restoreEntity(location, session.carryId(), session.payload());
+            }
+            repository.markPlaced(session.carryId());
+            if (placedEntity != null) {
+                snapshots.clearPlacedEntityMarker(placedEntity);
+            }
             renderer.remove(session);
             sessions.remove(session.playerUuid());
-            locks.unlock(position);
-            database(() -> repository.markPlaced(session.carryId())).whenComplete((ignored, error) -> {
-                if (error != null) logFailure("PLACED write failed", session.carryId(), error);
-            });
-            audit(session.carryId(), player, session.payload().material(), "PLACING", "PLACED",
-                    session.originalPosition(), position);
-            messages.send(player, "place-success", Map.of("block", displayMaterial(session.payload().material())));
-        } catch (RuntimeException exception) {
-            destination.setType(Material.AIR, false);
-            logFailure("Placement restore failed", session.carryId(), exception);
-            rollbackPlacementState(session, position, player, "restore failed");
+            boolean blockLike = session.payload().kind().isBlockLike();
+            messages.send(player, blockLike
+                    ? "place-success"
+                    : "entity-place-success", Map.of(
+                    blockLike ? "block" : "entity",
+                    displayType(session.payload().typeKey())
+            ));
+        } catch (SQLException | RuntimeException exception) {
+            if (placedEntity != null && placedEntity.isValid()) {
+                placedEntity.remove();
+            }
+            removeFailedPlacement(destination, session.payload());
+            session.cancelPlacement();
+            try {
+                repository.markCarried(session.carryId());
+            } catch (SQLException rollbackError) {
+                exception.addSuppressed(rollbackError);
+            }
+            logFailure("Placement failed", session.carryId(), exception);
             messages.send(player, "place-failed");
         }
-    }
-
-    private void rollbackPlacementState(CarrySession session, BlockPosition position, Player player, String reason) {
-        session.cancelPlacement();
-        locks.unlock(position);
-        database(() -> repository.markCarried(session.carryId())).whenComplete((ignored, error) -> {
-            if (error != null) logFailure("Placement rollback status failed", session.carryId(), error);
-        });
-        if (player != null) {
-            plugin.getLogger().warning("Carry " + session.carryId() + " kept as CARRIED: " + reason);
-        }
-    }
-
-    public void restoreOriginal(UUID playerUuid) {
-        requireMainThread();
-        CarrySession session = sessions.get(playerUuid).orElse(null);
-        if (session == null || !session.beginPlacement()) {
-            return;
-        }
-        restoreSession(session, session.originalPosition(), false);
     }
 
     public void restoreHere(Player admin, CarryRecord record, Block destination) {
@@ -331,71 +281,39 @@ public final class CarryService {
             return;
         }
         BlockPosition position = BlockPosition.from(destination);
-        database(() -> repository.markPlacing(record.carryId(), position)).whenComplete((ignored, error) -> sync(() -> {
-            if (error != null) {
-                messages.send(admin, "database-error");
-                return;
+        Entity restoredEntity = null;
+        try {
+            repository.markPlacing(record.carryId(), position);
+            if (record.payload().kind() == CarryKind.BLOCK) {
+                snapshots.restoreBlock(admin, destination, record.payload());
+            } else if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {
+                soulAnchors.restore(destination, record.payload());
+            } else {
+                restoredEntity = snapshots.restoreEntity(
+                        destination.getLocation().add(0.5, 0.0, 0.5),
+                        record.carryId(),
+                        record.payload()
+                );
             }
+            repository.markRestored(record.carryId());
+            if (restoredEntity != null) {
+                snapshots.clearPlacedEntityMarker(restoredEntity);
+            }
+            sessions.get(record.playerUuid()).ifPresent(renderer::remove);
+            sessions.remove(record.playerUuid());
+            messages.send(admin, "recover-success");
+        } catch (SQLException | RuntimeException exception) {
+            if (restoredEntity != null && restoredEntity.isValid()) {
+                restoredEntity.remove();
+            }
+            removeFailedPlacement(destination, record.payload());
             try {
-                destination.setBlockData(Bukkit.createBlockData(record.payload().blockData()), false);
-                serializers.serializerFor(destination.getState()).restore(destination, record.payload());
-                sessions.get(record.playerUuid()).ifPresent(renderer::remove);
-                sessions.remove(record.playerUuid());
-                database(() -> repository.markRestored(record.carryId()));
-                messages.send(admin, "recover-success");
-            } catch (RuntimeException exception) {
-                destination.setType(Material.AIR, false);
-                database(() -> repository.markCarried(record.carryId()));
-                logFailure("Admin recovery failed", record.carryId(), exception);
-                messages.send(admin, "place-failed");
+                repository.markCarried(record.carryId());
+            } catch (SQLException rollbackError) {
+                exception.addSuppressed(rollbackError);
             }
-        }));
-    }
-
-    private void restoreSession(CarrySession session, BlockPosition target, boolean shutdown) {
-        World world = Bukkit.getWorld(target.worldUuid());
-        if (world == null || !world.isChunkLoaded(target.x() >> 4, target.z() >> 4)) {
-            session.cancelPlacement();
-            return;
-        }
-        Block block = target.block(world);
-        if (!block.isEmpty() && !block.isReplaceable()) {
-            session.cancelPlacement();
-            return;
-        }
-
-        Runnable restore = () -> {
-            try {
-                block.setBlockData(Bukkit.createBlockData(session.payload().blockData()), false);
-                serializers.serializerFor(block.getState()).restore(block, session.payload());
-                renderer.remove(session);
-                sessions.remove(session.playerUuid());
-                database(() -> repository.markRestored(session.carryId()));
-                audit(session.carryId(), Bukkit.getPlayer(session.playerUuid()), session.payload().material(),
-                        "CARRIED", "RESTORED", session.originalPosition(), target);
-            } catch (RuntimeException exception) {
-                block.setType(Material.AIR, false);
-                session.cancelPlacement();
-                logFailure("Original restore failed", session.carryId(), exception);
-            }
-        };
-
-        if (shutdown) {
-            restore.run();
-        } else {
-            database(() -> repository.markPlacing(session.carryId(), target)).whenComplete((ignored, error) -> sync(() -> {
-                if (error != null) {
-                    session.cancelPlacement();
-                    logFailure("Original restore prepare failed", session.carryId(), error);
-                    return;
-                }
-                if (block.isEmpty() || block.isReplaceable()) {
-                    restore.run();
-                } else {
-                    session.cancelPlacement();
-                    database(() -> repository.markCarried(session.carryId()));
-                }
-            }));
+            logFailure("Admin recovery failed", record.carryId(), exception);
+            messages.send(admin, "place-failed");
         }
     }
 
@@ -404,82 +322,177 @@ public final class CarryService {
         if (sessions.isCarrying(record.playerUuid())) {
             return;
         }
-        CarrySession session = new CarrySession(record.carryId(), record.playerUuid(),
-                record.originalPosition(), record.payload());
+        CarrySession session = new CarrySession(
+                record.carryId(),
+                record.playerUuid(),
+                record.originalPosition(),
+                record.payload()
+        );
         if (sessions.add(session)) {
-            renderer.spawn(player, session);
-            if (record.status() != CarryStatus.CARRIED) {
-                database(() -> repository.markCarried(record.carryId()));
+            try {
+                renderer.spawn(player, session);
+                if (record.status() != CarryStatus.CARRIED) {
+                    markCarriedBestEffort(record);
+                }
+                messages.send(player, "recovery-loaded", Map.of(
+                        "object",
+                        displayType(record.payload().typeKey())
+                ));
+            } catch (RuntimeException exception) {
+                sessions.remove(record.playerUuid());
+                renderer.remove(session);
+                logFailure("Cannot render recovered carry", record.carryId(), exception);
+                messages.send(player, "snapshot-error");
             }
-            messages.send(player, "recovery-loaded", Map.of("block", displayMaterial(record.payload().material())));
+        }
+    }
+
+    public void detach(Player player) {
+        requireMainThread();
+        CarrySession session = sessions.remove(player.getUniqueId());
+        if (session != null) {
+            renderer.remove(session);
         }
     }
 
     public CompletableFuture<Optional<CarryRecord>> findActive(UUID playerUuid) {
-        return databaseValue(() -> repository.findActiveByPlayer(playerUuid));
+        try {
+            return CompletableFuture.completedFuture(repository.findActiveByPlayer(playerUuid));
+        } catch (SQLException exception) {
+            return CompletableFuture.failedFuture(new CompletionException(exception));
+        }
     }
 
     public CompletableFuture<Optional<CarryRecord>> findById(UUID carryId) {
-        return databaseValue(() -> repository.findById(carryId));
+        try {
+            return CompletableFuture.completedFuture(repository.findById(carryId));
+        } catch (SQLException exception) {
+            return CompletableFuture.failedFuture(new CompletionException(exception));
+        }
     }
 
     public void shutdown() {
         requireMainThread();
         accepting = false;
-        if (timeoutTask != null) {
-            timeoutTask.cancel();
-            timeoutTask = null;
-        }
         for (CarrySession session : sessions.sessions()) {
-            if (session.beginPlacement()) {
-                restoreSession(session, session.originalPosition(), true);
+            renderer.remove(session);
+            sessions.remove(session.playerUuid());
+        }
+    }
+
+    private CarryRecord preparedRecord(UUID carryId, Player player, BlockPosition origin, CarryPayload payload) {
+        Instant now = Instant.now();
+        return new CarryRecord(
+                carryId,
+                player.getUniqueId(),
+                origin,
+                null,
+                CarryStatus.PREPARED,
+                payload,
+                now,
+                now
+        );
+    }
+
+    private boolean insertPrepared(Player player, CarryRecord record) {
+        try {
+            repository.insertPrepared(record);
+            return true;
+        } catch (SQLException exception) {
+            logFailure("Cannot write PREPARED state", record.carryId(), exception);
+            messages.send(player, "database-error");
+            return false;
+        }
+    }
+
+    private void activateNewSession(CarryRecord record, Player player) {
+        CarrySession session = new CarrySession(
+                record.carryId(),
+                record.playerUuid(),
+                record.originalPosition(),
+                record.payload()
+        );
+        if (!sessions.add(session)) {
+            throw new IllegalStateException("Player already has an active carry session");
+        }
+        try {
+            renderer.spawn(player, session);
+        } catch (RuntimeException exception) {
+            sessions.remove(player.getUniqueId());
+            throw exception;
+        }
+    }
+
+    private void rollbackPickup(CarryRecord record) {
+        CarrySession session = sessions.remove(record.playerUuid());
+        if (session != null) {
+            renderer.remove(session);
+        }
+        World world = Bukkit.getWorld(record.originalPosition().worldUuid());
+        if (world == null) {
+            markFailedBestEffort(record.carryId(), "rollback world unavailable");
+            return;
+        }
+        Block original = record.originalPosition().block(world);
+        try {
+            if (record.payload().kind() == CarryKind.BLOCK) {
+                if (snapshots.matchesSourceBlock(original, record.payload())) {
+                    repository.markRestored(record.carryId());
+                    return;
+                }
+                if (!original.isEmpty() && !original.isReplaceable()) {
+                    throw new IllegalStateException("Original block position is occupied");
+                }
+                snapshots.restoreBlock(original, record.payload());
+            } else if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {
+                if (!original.isEmpty() && !original.isReplaceable()
+                        && !soulAnchors.matchesBackingBlock(original, record.payload())) {
+                    throw new IllegalStateException("Original Soul Anchor position is occupied");
+                }
+                soulAnchors.restore(original, record.payload());
             } else {
-                renderer.remove(session);
+                Entity restored = snapshots.restoreEntity(
+                        original.getLocation().add(0.5, 0.0, 0.5),
+                        record.carryId(),
+                        record.payload()
+                );
+                snapshots.clearPlacedEntityMarker(restored);
             }
+            repository.markRestored(record.carryId());
+        } catch (SQLException | RuntimeException rollbackError) {
+            logFailure("Pickup rollback failed", record.carryId(), rollbackError);
+            markFailedBestEffort(record.carryId(), "pickup rollback failed");
         }
     }
 
-    private void restoreExpiredSessions() {
-        long maximumMillis = Math.max(1L,
-                plugin.getConfig().getLong("carrying.maximum-duration-seconds", 300L)) * 1000L;
-        long now = System.currentTimeMillis();
-        for (CarrySession session : sessions.sessions()) {
-            if (now - session.startedAtMillis() >= maximumMillis) {
-                Player player = Bukkit.getPlayer(session.playerUuid());
-                if (player != null) messages.send(player, "carry-timeout");
-                restoreOriginal(session.playerUuid());
-            }
+    private void markCarriedBestEffort(CarryRecord record) {
+        try {
+            repository.markCarried(record.carryId());
+        } catch (SQLException exception) {
+            logFailure("Cannot write CARRIED state", record.carryId(), exception);
         }
     }
 
-    private void finishPickupAttempt(UUID playerUuid, BlockPosition position) {
-        pendingPlayers.remove(playerUuid);
-        locks.unlock(position);
-    }
-
-    private CompletableFuture<Void> database(SqlRunnable runnable) {
-        return CompletableFuture.runAsync(() -> {
-            try {
-                runnable.run();
-            } catch (SQLException exception) {
-                throw new CompletionException(exception);
+    private void removeFailedPlacement(Block destination, CarryPayload payload) {
+        if (payload.kind() == CarryKind.SOUL_ANCHOR) {
+            if (soulAnchors.matches(destination, payload)) {
+                soulAnchors.removeForCarry(destination, payload);
             }
-        }, databaseExecutor);
-    }
-
-    private <T> CompletableFuture<T> databaseValue(SqlSupplier<T> supplier) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return supplier.get();
-            } catch (SQLException exception) {
-                throw new CompletionException(exception);
+            if (soulAnchors.matchesBackingBlock(destination, payload)) {
+                destination.setType(Material.AIR, true);
             }
-        }, databaseExecutor);
+            return;
+        }
+        if (payload.kind() == CarryKind.BLOCK && snapshots.matchesPlacedBlock(destination, payload)) {
+            destination.setType(Material.AIR, true);
+        }
     }
 
-    private void sync(Runnable runnable) {
-        if (plugin.isEnabled()) {
-            Bukkit.getScheduler().runTask(plugin, runnable);
+    private void markFailedBestEffort(UUID carryId, String reason) {
+        try {
+            repository.markFailed(carryId, reason);
+        } catch (SQLException exception) {
+            logFailure("Cannot write FAILED state", carryId, exception);
         }
     }
 
@@ -490,26 +503,11 @@ public final class CarryService {
     }
 
     private void logFailure(String message, UUID carryId, Throwable error) {
-        Throwable cause = error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
-        plugin.getLogger().log(Level.SEVERE, message + " [carryId=" + carryId + "]", cause);
+        plugin.getLogger().log(Level.SEVERE, message + " [carryId=" + carryId + "]", error);
     }
 
-    private void audit(UUID carryId, Player player, String material, String from, String to,
-                       BlockPosition original, BlockPosition destination) {
-        plugin.getLogger().info("AUDIT carryId=" + carryId
-                + " player=" + (player == null ? "offline" : player.getName() + "/" + player.getUniqueId())
-                + " material=" + material + " status=" + from + "->" + to
-                + " original=" + original + " destination=" + destination);
-    }
-
-    private static String displayMaterial(String key) {
+    private static String displayType(String key) {
         int separator = key.indexOf(':');
         return (separator >= 0 ? key.substring(separator + 1) : key).replace('_', ' ');
     }
-
-    @FunctionalInterface
-    private interface SqlRunnable { void run() throws SQLException; }
-
-    @FunctionalInterface
-    private interface SqlSupplier<T> { T get() throws SQLException; }
 }

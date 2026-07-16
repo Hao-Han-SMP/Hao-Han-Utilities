@@ -41,7 +41,7 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
             sender.sendMessage("Hảo Hán Utilities v" + plugin.getPluginMeta().getVersion()
-                    + " — Carry Blocks + Phantom Suppression");
+                    + " — Carry Blocks + Animals + Phantom Suppression");
             return true;
         }
         if (!sender.hasPermission("haohanutilities.admin")) {
@@ -149,7 +149,8 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         sender.sendMessage("carryId: " + record.carryId());
         sender.sendMessage("player: " + record.playerUuid());
         sender.sendMessage("status: " + record.status());
-        sender.sendMessage("material: " + record.payload().material());
+        sender.sendMessage("kind: " + record.payload().kind());
+        sender.sendMessage("type: " + record.payload().typeKey());
         sender.sendMessage("original: " + record.originalPosition());
         sender.sendMessage("placement: " + record.placementPosition());
         sender.sendMessage("created: " + record.createdAt());

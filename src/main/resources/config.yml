@@ -3,41 +3,34 @@ pickup:
   require-empty-main-hand: true
   require-empty-off-hand: true
   maximum-distance: 4.5
-  cooldown-milliseconds: 500
-  deny-open-containers: true
 
 placement:
   maximum-distance: 5.0
   require-solid-support: true
-  allow-replaceable-blocks: true
-  apply-physics-after-restore: false
 
 carrying:
-  maximum-one-block-per-player: true
-  disable-sprinting: true
+  # 0.75 = giảm 25% tốc độ di chuyển khi đang carry bất kỳ vật gì.
+  movement-speed-multiplier: 0.75
   disable-gliding: true
   disable-flight: false
   disable-combat: true
   disable-teleport: true
-  maximum-duration-seconds: 300
-
-logout:
-  behavior: RESTORE_ORIGINAL
-
-death:
-  behavior: RESTORE_ORIGINAL
 
 recovery:
   restore-on-startup: true
-  fail-closed: true
-  stale-session-minutes: 30
 
 protection:
   enabled: true
-  fail-closed: true
 
-chest-carry:
+entities:
   enabled: true
+
+animation:
+  object-scale: 1.05
+  forward-offset: 0.72
+  vertical-offset: -0.55
+  entity-forward-offset: 0.95
+  entity-vertical-offset: -1.15
 
 phantom-suppression:
   enabled: true
@@ -50,6 +43,8 @@ worlds:
 
 blocks:
   allowed:
+    - CHEST
+    - TRAPPED_CHEST
     - BARREL
     - FURNACE
     - BLAST_FURNACE
@@ -60,6 +55,27 @@ blocks:
     - BREWING_STAND
     - CRAFTER
     - SHULKER_BOX
+    - WHITE_SHULKER_BOX
+    - ORANGE_SHULKER_BOX
+    - MAGENTA_SHULKER_BOX
+    - LIGHT_BLUE_SHULKER_BOX
+    - YELLOW_SHULKER_BOX
+    - LIME_SHULKER_BOX
+    - PINK_SHULKER_BOX
+    - GRAY_SHULKER_BOX
+    - LIGHT_GRAY_SHULKER_BOX
+    - CYAN_SHULKER_BOX
+    - PURPLE_SHULKER_BOX
+    - BLUE_SHULKER_BOX
+    - BROWN_SHULKER_BOX
+    - GREEN_SHULKER_BOX
+    - RED_SHULKER_BOX
+    - BLACK_SHULKER_BOX
+    - CHISELED_BOOKSHELF
+    - DECORATED_POT
+    - JUKEBOX
+    - BEEHIVE
+    - BEE_NEST
     - CRAFTING_TABLE
     - SMITHING_TABLE
     - STONECUTTER

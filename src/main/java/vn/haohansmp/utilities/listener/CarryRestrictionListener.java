@@ -8,7 +8,6 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
-import org.bukkit.event.player.PlayerToggleSprintEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import vn.haohansmp.utilities.carry.CarryService;
 
@@ -19,14 +18,6 @@ public final class CarryRestrictionListener implements Listener {
     public CarryRestrictionListener(JavaPlugin plugin, CarryService carryService) {
         this.plugin = plugin;
         this.carryService = carryService;
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onSprint(PlayerToggleSprintEvent event) {
-        if (event.isSprinting() && plugin.getConfig().getBoolean("carrying.disable-sprinting", true)
-                && carryService.isCarrying(event.getPlayer().getUniqueId())) {
-            event.setCancelled(true);
-        }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -63,4 +54,5 @@ public final class CarryRestrictionListener implements Listener {
             event.setCancelled(true);
         }
     }
+
 }

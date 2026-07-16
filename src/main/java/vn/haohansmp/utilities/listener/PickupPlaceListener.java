@@ -6,6 +6,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import vn.haohansmp.utilities.carry.CarryService;
 
@@ -16,12 +17,13 @@ public final class PickupPlaceListener implements Listener {
         this.carryService = carryService;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
         }
         if (carryService.isCarrying(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
             carryService.handlePlacement(event);
             return;
         }
@@ -33,6 +35,23 @@ public final class PickupPlaceListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        carryService.pickup(event.getPlayer(), clicked);
+        carryService.pickupBlock(event.getPlayer(), clicked);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onEntityInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        if (carryService.isCarrying(event.getPlayer().getUniqueId())) {
+            event.setCancelled(true);
+            carryService.handleObstructedPlacement(event.getPlayer());
+            return;
+        }
+        if (!event.getPlayer().isSneaking()) {
+            return;
+        }
+        event.setCancelled(true);
+        carryService.pickupEntity(event.getPlayer(), event.getRightClicked());
     }
 }
