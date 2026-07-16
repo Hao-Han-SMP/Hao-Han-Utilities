@@ -8,6 +8,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import vn.haohansmp.utilities.carry.CarryService;
 
 public final class PickupPlaceListener implements Listener {
@@ -23,15 +24,24 @@ public final class PickupPlaceListener implements Listener {
             return;
         }
         if (carryService.isCarrying(event.getPlayer().getUniqueId())) {
+            Block clicked = event.getClickedBlock();
+            if (event.getAction() == Action.RIGHT_CLICK_BLOCK
+                    && clicked != null
+                    && carryService.isSoulAnchor(clicked)) {
+                return;
+            }
             event.setCancelled(true);
             carryService.handlePlacement(event);
             return;
         }
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || !event.getPlayer().isSneaking()) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK
+                || !event.getPlayer().getCurrentInput().isSprint()
+                || !hasEmptyHands(event.getPlayer().getInventory().getItem(EquipmentSlot.HAND),
+                        event.getPlayer().getInventory().getItem(EquipmentSlot.OFF_HAND))) {
             return;
         }
         Block clicked = event.getClickedBlock();
-        if (clicked == null) {
+        if (clicked == null || !carryService.isSupportedPickupBlock(clicked)) {
             return;
         }
         event.setCancelled(true);
@@ -44,14 +54,24 @@ public final class PickupPlaceListener implements Listener {
             return;
         }
         if (carryService.isCarrying(event.getPlayer().getUniqueId())) {
+            if (carryService.isSoulAnchorEntity(event.getRightClicked())) {
+                return;
+            }
             event.setCancelled(true);
             carryService.handleObstructedPlacement(event.getPlayer());
             return;
         }
-        if (!event.getPlayer().isSneaking()) {
+        if (!event.getPlayer().getCurrentInput().isSprint()
+                || !hasEmptyHands(event.getPlayer().getInventory().getItem(EquipmentSlot.HAND),
+                        event.getPlayer().getInventory().getItem(EquipmentSlot.OFF_HAND))
+                || !carryService.isSupportedPickupEntity(event.getRightClicked())) {
             return;
         }
         event.setCancelled(true);
         carryService.pickupEntity(event.getPlayer(), event.getRightClicked());
+    }
+
+    private static boolean hasEmptyHands(ItemStack mainHand, ItemStack offHand) {
+        return mainHand.getType().isAir() && offHand.getType().isAir();
     }
 }

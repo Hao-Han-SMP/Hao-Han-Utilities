@@ -12,7 +12,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.WaterMob;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.plugin.java.JavaPlugin;
 import vn.haohansmp.utilities.integration.SoulAnchorIntegration;
 
@@ -63,7 +62,7 @@ public final class CarryValidator {
         if (soulAnchors.isAnchor(block)) {
             return soulAnchors.validatePickup(player, block);
         }
-        if (!isAllowedMaterial(block.getType())) {
+        if (!isSupportedBlock(block)) {
             return "unsupported-block";
         }
         if (block.getState() instanceof Container container && !container.getInventory().getViewers().isEmpty()) {
@@ -77,16 +76,7 @@ public final class CarryValidator {
         if (common != null) {
             return common;
         }
-        if (!plugin.getConfig().getBoolean("entities.enabled", true)) {
-            return "unsupported-entity";
-        }
-        if (entity.getScoreboardTags().contains(CarrySnapshotService.VISUAL_ENTITY_TAG)) {
-            return "unsupported-entity";
-        }
-        if (!(entity instanceof Animals || entity instanceof WaterMob || entity instanceof Ambient)
-                || entity instanceof Player || entity.isDead() || !entity.isValid()
-                || entity.isInsideVehicle() || !entity.getPassengers().isEmpty()
-                || (entity instanceof LivingEntity living && living.isLeashed())) {
+        if (!isSupportedEntity(entity)) {
             return "unsupported-entity";
         }
         return null;
@@ -135,6 +125,22 @@ public final class CarryValidator {
                 || (material.name().endsWith("_SHULKER_BOX") && allowedBlocks.contains(Material.SHULKER_BOX));
     }
 
+    public boolean isSupportedBlock(Block block) {
+        return soulAnchors.isAnchor(block) || isAllowedMaterial(block.getType());
+    }
+
+    public boolean isSupportedEntity(Entity entity) {
+        return plugin.getConfig().getBoolean("entities.enabled", true)
+                && !entity.getScoreboardTags().contains(CarrySnapshotService.VISUAL_ENTITY_TAG)
+                && (entity instanceof Animals || entity instanceof WaterMob || entity instanceof Ambient)
+                && !(entity instanceof Player)
+                && !entity.isDead()
+                && entity.isValid()
+                && !entity.isInsideVehicle()
+                && entity.getPassengers().isEmpty()
+                && (!(entity instanceof LivingEntity living) || !living.isLeashed());
+    }
+
     private String validateCommon(Player player, World world, org.bukkit.Location target) {
         if (!player.hasPermission("haohanutilities.carry.use")) {
             return "no-permission";
@@ -144,17 +150,6 @@ public final class CarryValidator {
         }
         if (player.getGameMode() == GameMode.SPECTATOR || player.isDead()) {
             return "invalid-player-state";
-        }
-        if (plugin.getConfig().getBoolean("pickup.require-sneaking", true) && !player.isSneaking()) {
-            return "must-sneak";
-        }
-        if (plugin.getConfig().getBoolean("pickup.require-empty-main-hand", true)
-                && !player.getInventory().getItem(EquipmentSlot.HAND).getType().isAir()) {
-            return "hands-must-be-empty";
-        }
-        if (plugin.getConfig().getBoolean("pickup.require-empty-off-hand", true)
-                && !player.getInventory().getItem(EquipmentSlot.OFF_HAND).getType().isAir()) {
-            return "hands-must-be-empty";
         }
         if (!worldAllowed(world)) {
             return "world-disabled";

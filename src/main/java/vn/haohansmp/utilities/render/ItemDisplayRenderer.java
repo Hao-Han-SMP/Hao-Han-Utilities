@@ -20,6 +20,7 @@ import vn.haohansmp.utilities.carry.CarryKind;
 import vn.haohansmp.utilities.carry.CarrySession;
 import vn.haohansmp.utilities.carry.CarrySessionManager;
 import vn.haohansmp.utilities.carry.CarrySnapshotService;
+import vn.haohansmp.utilities.carry.CarryWeight;
 
 public final class ItemDisplayRenderer implements CarryRenderer {
     private final JavaPlugin plugin;
@@ -57,16 +58,9 @@ public final class ItemDisplayRenderer implements CarryRenderer {
 
     @Override
     public void spawn(Player player, CarrySession session) {
-        applyMovementSlowdown(player);
+        applyMovementSlowdown(player, session);
         try {
-            Entity visual;
-            if (session.payload().kind() == CarryKind.ENTITY) {
-                visual = snapshots.spawnVisualEntity(entityLocation(player), session.payload());
-                disableEntityPhysics(visual);
-            } else {
-                visual = spawnItemDisplay(player, session);
-            }
-            session.visualEntity(visual);
+            session.visualEntity(spawnVisual(player, session));
         } catch (RuntimeException exception) {
             removeMovementSlowdown(player);
             throw exception;
@@ -126,8 +120,25 @@ public final class ItemDisplayRenderer implements CarryRenderer {
         for (CarrySession session : sessions.sessions()) {
             Player player = Bukkit.getPlayer(session.playerUuid());
             Entity visual = session.visualEntity();
-            if (player == null || !player.isOnline() || visual == null || !visual.isValid()) {
+            if (player == null || !player.isOnline()) {
                 continue;
+            }
+            if (visual == null || !visual.isValid() || visual.getWorld() != player.getWorld()) {
+                if (visual != null && visual.isValid()) {
+                    visual.leaveVehicle();
+                    visual.remove();
+                }
+                try {
+                    visual = spawnVisual(player, session);
+                    session.visualEntity(visual);
+                } catch (RuntimeException exception) {
+                    plugin.getLogger().warning(
+                            "Cannot recreate carry visual after teleport [carryId="
+                                    + session.carryId() + "]: " + exception.getMessage()
+                    );
+                    session.visualEntity(null);
+                    continue;
+                }
             }
             if (visual instanceof ItemDisplay display) {
                 if (display.getVehicle() != player) {
@@ -143,6 +154,15 @@ public final class ItemDisplayRenderer implements CarryRenderer {
         }
     }
 
+    private Entity spawnVisual(Player player, CarrySession session) {
+        if (session.payload().kind() == CarryKind.ENTITY) {
+            Entity visual = snapshots.spawnVisualEntity(entityLocation(player), session.payload());
+            disableEntityPhysics(visual);
+            return visual;
+        }
+        return spawnItemDisplay(player, session);
+    }
+
     private static void disableEntityPhysics(Entity visual) {
         visual.setNoPhysics(true);
         visual.setGravity(false);
@@ -151,13 +171,22 @@ public final class ItemDisplayRenderer implements CarryRenderer {
         }
     }
 
-    private void applyMovementSlowdown(Player player) {
+    private void applyMovementSlowdown(Player player, CarrySession session) {
         AttributeInstance movementSpeed = player.getAttribute(Attribute.MOVEMENT_SPEED);
         if (movementSpeed == null) {
             return;
         }
-        double configured = plugin.getConfig().getDouble("carrying.movement-speed-multiplier", 0.75);
-        double multiplier = Math.max(0.1, Math.min(1.0, configured));
+        double baseMultiplier = plugin.getConfig().getDouble("carrying.movement-speed-multiplier", 0.75);
+        double fullContainerMultiplier = plugin.getConfig().getDouble(
+                "carrying.full-container-movement-speed-multiplier",
+                0.35
+        );
+        double fillRatio = snapshots.containerFillRatio(session.payload()).orElse(0.0);
+        double multiplier = CarryWeight.movementMultiplier(
+                baseMultiplier,
+                fullContainerMultiplier,
+                fillRatio
+        );
         movementSpeed.removeModifier(movementSpeedKey);
         movementSpeed.addTransientModifier(new AttributeModifier(
                 movementSpeedKey,

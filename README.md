@@ -27,10 +27,12 @@ Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pac
 ### Nhấc vật
 
 1. Đảm bảo cả tay chính và tay phụ đều trống.
-2. Cúi người bằng phím `Shift`.
+2. Giữ phím sprint (mặc định là `Ctrl`).
 3. Chuột phải vào block hoặc động vật muốn nhấc.
 
-Người chơi chỉ có thể carry một vật tại một thời điểm và sẽ di chuyển chậm hơn trong lúc đang mang vật.
+Nếu tay đang có đồ hoặc block không hỗ trợ carry, plugin không chặn thao tác và không gửi thông báo; Minecraft sẽ đặt block hoặc tương tác như bình thường.
+
+Người chơi chỉ có thể carry một vật tại một thời điểm. Container càng chứa nhiều đồ thì người chơi càng di chuyển chậm.
 
 ### Đặt vật
 
@@ -94,8 +96,10 @@ Yêu cầu:
 
 ```yaml
 carrying:
-  # 0.75 = giảm 25% tốc độ khi đang carry.
+  # Tốc độ khi mang vật thường hoặc container rỗng.
   movement-speed-multiplier: 0.75
+  # Tốc độ khi container đầy; lượng đồ được nội suy giữa hai mức.
+  full-container-movement-speed-multiplier: 0.35
 
 entities:
   enabled: true

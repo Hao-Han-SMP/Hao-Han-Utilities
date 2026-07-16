@@ -71,6 +71,22 @@ public final class CarryService {
         return sessions.get(playerUuid);
     }
 
+    public boolean isSupportedPickupBlock(Block block) {
+        return validator.isSupportedBlock(block);
+    }
+
+    public boolean isSupportedPickupEntity(Entity entity) {
+        return soulAnchors.backingBlock(entity) != null || validator.isSupportedEntity(entity);
+    }
+
+    public boolean isSoulAnchor(Block block) {
+        return soulAnchors.isAnchor(block);
+    }
+
+    public boolean isSoulAnchorEntity(Entity entity) {
+        return soulAnchors.backingBlock(entity) != null;
+    }
+
     public void pickupBlock(Player player, Block block) {
         requireMainThread();
         if (!accepting) {
@@ -79,7 +95,9 @@ public final class CarryService {
         }
         String denied = validator.validateBlockPickup(player, block);
         if (denied != null) {
-            messages.send(player, denied);
+            if (!"unsupported-block".equals(denied)) {
+                messages.send(player, denied);
+            }
             return;
         }
 
@@ -145,7 +163,9 @@ public final class CarryService {
         }
         String denied = validator.validateEntityPickup(player, entity);
         if (denied != null) {
-            messages.send(player, denied);
+            if (!"unsupported-entity".equals(denied)) {
+                messages.send(player, denied);
+            }
             return;
         }
 

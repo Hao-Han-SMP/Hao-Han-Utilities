@@ -7,12 +7,14 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.Container;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -20,6 +22,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import vn.haohansmp.utilities.chest.ChestPlacementRules;
 import vn.haohansmp.utilities.placement.VanillaPlacementRules;
 
+import java.util.OptionalDouble;
 import java.util.UUID;
 
 public final class CarrySnapshotService {
@@ -67,6 +70,35 @@ public final class CarrySnapshotService {
                 visual.serializeAsBytes(),
                 entity.getUniqueId()
         );
+    }
+
+    public OptionalDouble containerFillRatio(CarryPayload payload) {
+        if (payload.kind() != CarryKind.BLOCK) {
+            return OptionalDouble.empty();
+        }
+        try {
+            ItemStack storedItem = ItemStack.deserializeBytes(payload.data());
+            if (!(storedItem.getItemMeta() instanceof BlockStateMeta meta) || !meta.hasBlockState()
+                    || !(meta.getBlockState() instanceof Container container)) {
+                return OptionalDouble.empty();
+            }
+            Inventory inventory = container.getSnapshotInventory();
+            ItemStack[] contents = inventory.getStorageContents();
+            if (contents.length == 0) {
+                return OptionalDouble.of(0.0);
+            }
+            double filledSlots = 0.0;
+            for (ItemStack item : contents) {
+                if (item == null || item.getType().isAir()) {
+                    continue;
+                }
+                int maximum = Math.max(1, item.getMaxStackSize());
+                filledSlots += Math.min(1.0, (double) item.getAmount() / maximum);
+            }
+            return OptionalDouble.of(Math.min(1.0, filledSlots / contents.length));
+        } catch (RuntimeException ignored) {
+            return OptionalDouble.empty();
+        }
     }
 
     public void restoreBlock(Block destination, CarryPayload payload) {

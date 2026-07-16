@@ -27,10 +27,12 @@ The plugin is completely server-side and requires no client mod or resource pack
 ### Pick something up
 
 1. Make sure both hands are empty.
-2. Hold `Shift` to sneak.
+2. Hold the sprint key (`Ctrl` by default).
 3. Right-click the block or creature you want to carry.
 
-A player can carry one object at a time and moves more slowly while carrying it.
+If either hand contains an item or the target block is unsupported, the plugin leaves the interaction untouched and sends no message, so vanilla placement or interaction continues normally.
+
+A player can carry one object at a time. The more items a container holds, the slower the player moves while carrying it.
 
 ### Place it down
 
@@ -94,8 +96,10 @@ Requirements:
 
 ```yaml
 carrying:
-  # 0.75 means 25% slower while carrying.
+  # Speed while carrying a normal object or an empty container.
   movement-speed-multiplier: 0.75
+  # Speed at a full container; item load is interpolated between both values.
+  full-container-movement-speed-multiplier: 0.35
 
 entities:
   enabled: true

@@ -1,7 +1,4 @@
 pickup:
-  require-sneaking: true
-  require-empty-main-hand: true
-  require-empty-off-hand: true
   maximum-distance: 4.5
 
 placement:
@@ -9,12 +6,13 @@ placement:
   require-solid-support: true
 
 carrying:
-  # 0.75 = giảm 25% tốc độ di chuyển khi đang carry bất kỳ vật gì.
+  # Tốc độ khi mang vật thường hoặc container rỗng.
   movement-speed-multiplier: 0.75
+  # Container càng đầy thì tốc độ càng tiến gần mức này.
+  full-container-movement-speed-multiplier: 0.35
   disable-gliding: true
   disable-flight: false
   disable-combat: true
-  disable-teleport: true
 
 recovery:
   restore-on-startup: true
