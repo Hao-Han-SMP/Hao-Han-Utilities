@@ -34,6 +34,7 @@ public final class CarryService {
     private final CarryRepository repository;
     private final CarrySessionManager sessions;
     private final CarryValidator validator;
+    private final CarryPreferences preferences;
     private final CarrySnapshotService snapshots;
     private final SoulAnchorIntegration soulAnchors;
     private final ProtectionService protection;
@@ -46,6 +47,7 @@ public final class CarryService {
             CarryRepository repository,
             CarrySessionManager sessions,
             CarryValidator validator,
+            CarryPreferences preferences,
             CarrySnapshotService snapshots,
             SoulAnchorIntegration soulAnchors,
             ProtectionService protection,
@@ -56,6 +58,7 @@ public final class CarryService {
         this.repository = repository;
         this.sessions = sessions;
         this.validator = validator;
+        this.preferences = preferences;
         this.snapshots = snapshots;
         this.soulAnchors = soulAnchors;
         this.protection = protection;
@@ -64,11 +67,26 @@ public final class CarryService {
     }
 
     public boolean isCarrying(UUID playerUuid) {
-        return sessions.isCarrying(playerUuid);
+        return sessions.isCarrying(playerUuid) || isCarryingPlayer(playerUuid);
+    }
+
+    public boolean isCarryingPlayer(UUID playerUuid) {
+        Player player = Bukkit.getPlayer(playerUuid);
+        return player != null && player.getPassengers().stream().anyMatch(Player.class::isInstance);
     }
 
     public Optional<CarrySession> session(UUID playerUuid) {
         return sessions.get(playerUuid);
+    }
+
+    public Optional<Player> carrierForVisual(Entity visual) {
+        return sessions.sessions().stream()
+                .filter(session -> session.visualEntity() != null
+                        && session.visualEntity().getUniqueId().equals(visual.getUniqueId()))
+                .map(CarrySession::playerUuid)
+                .map(Bukkit::getPlayer)
+                .filter(java.util.Objects::nonNull)
+                .findFirst();
     }
 
     public boolean isSupportedPickupBlock(Block block) {
@@ -77,6 +95,12 @@ public final class CarryService {
 
     public boolean isSupportedPickupEntity(Entity entity) {
         return soulAnchors.backingBlock(entity) != null || validator.isSupportedEntity(entity);
+    }
+
+    public boolean isSupportedPickupPlayer(Player player) {
+        return validator.isPlayerCarryEnabled()
+                && player.hasPermission("haohanutilities.carry.use")
+                && preferences.isEnabled(player);
     }
 
     public boolean isSoulAnchor(Block block) {
@@ -196,6 +220,35 @@ public final class CarryService {
         }
     }
 
+    public void pickupPlayer(Player carrier, Player target) {
+        requireMainThread();
+        if (!accepting) {
+            messages.send(carrier, "plugin-stopping");
+            return;
+        }
+        if (!preferences.isEnabled(carrier) || !isSupportedPickupPlayer(target)) {
+            return;
+        }
+        if (isCarryingPlayer(carrier.getUniqueId())) {
+            messages.send(carrier, "already-carrying");
+            return;
+        }
+        String denied = validator.validatePlayerPickup(carrier, target);
+        if (denied != null) {
+            if (!"unsupported-player".equals(denied)) {
+                messages.send(carrier, denied);
+            }
+            return;
+        }
+        if (!carrier.addPassenger(target)) {
+            messages.send(carrier, "player-pickup-failed");
+            return;
+        }
+        target.setFallDistance(0.0F);
+        messages.send(carrier, "player-pickup-success", Map.of("player", target.getName()));
+        messages.send(target, "player-carried", Map.of("player", carrier.getName()));
+    }
+
     public void handlePlacement(PlayerInteractEvent event) {
         requireMainThread();
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) {
@@ -215,6 +268,10 @@ public final class CarryService {
     }
 
     private void place(Player player, Block clicked, BlockFace clickedFace) {
+        if (placeCarriedPlayer(player, clicked, clickedFace)) {
+            return;
+        }
+
         CarrySession session = sessions.get(player.getUniqueId()).orElse(null);
         if (session == null) {
             return;
@@ -227,6 +284,7 @@ public final class CarryService {
         String denied = validator.validatePlacement(player, session, destination, clickedFace);
         if (denied != null) {
             session.cancelPlacement();
+            debugPlacement(player, session, destination, clickedFace, denied);
             messages.send(player, denied);
             return;
         }
@@ -266,6 +324,7 @@ public final class CarryService {
                 placedEntity = snapshots.restoreEntity(location, session.carryId(), session.payload());
             }
             repository.markPlaced(session.carryId());
+            debugPlacement(player, session, destination, clickedFace, "placed");
             if (placedEntity != null) {
                 snapshots.clearPlacedEntityMarker(placedEntity);
             }
@@ -292,6 +351,54 @@ public final class CarryService {
             logFailure("Placement failed", session.carryId(), exception);
             messages.send(player, "place-failed");
         }
+    }
+
+    private boolean placeCarriedPlayer(Player carrier, Block clicked, BlockFace clickedFace) {
+        Player passenger = carrier.getPassengers().stream()
+                .filter(Player.class::isInstance)
+                .map(Player.class::cast)
+                .findFirst()
+                .orElse(null);
+        if (passenger == null) {
+            return false;
+        }
+
+        Block destination = clicked.isReplaceable() ? clicked : clicked.getRelative(clickedFace);
+        double maximumDistance = plugin.getConfig().getDouble("placement.maximum-distance", 5.0);
+        boolean tooFar = carrier.getEyeLocation().distance(destination.getLocation().add(0.5, 0.5, 0.5))
+                > maximumDistance;
+        if (tooFar) {
+            messages.send(carrier, "too-far");
+            return true;
+        }
+        if (!isSafePlayerDestination(destination)) {
+            messages.send(carrier, "invalid-player-destination");
+            return true;
+        }
+
+        Location location = destination.getLocation().add(0.5, 0.0, 0.5);
+        location.setYaw(passenger.getYaw());
+        location.setPitch(passenger.getPitch());
+        if (!carrier.removePassenger(passenger)) {
+            messages.send(carrier, "player-place-failed");
+            return true;
+        }
+        if (!passenger.teleport(location)) {
+            carrier.addPassenger(passenger);
+            messages.send(carrier, "player-place-failed");
+            return true;
+        }
+
+        passenger.setFallDistance(0.0F);
+        messages.send(carrier, "player-place-success", Map.of("player", passenger.getName()));
+        messages.send(passenger, "player-placed", Map.of("player", carrier.getName()));
+        return true;
+    }
+
+    private static boolean isSafePlayerDestination(Block destination) {
+        return destination.isPassable()
+                && destination.getRelative(BlockFace.UP).isPassable()
+                && destination.getRelative(BlockFace.DOWN).getType().isSolid();
     }
 
     public void restoreHere(Player admin, CarryRecord record, Block destination) {
@@ -373,6 +480,18 @@ public final class CarryService {
         if (session != null) {
             renderer.remove(session);
         }
+        releasePlayerPassengers(player);
+        if (player.getVehicle() instanceof Player) {
+            player.leaveVehicle();
+        }
+    }
+
+    public void releaseIfCarried(Player player) {
+        requireMainThread();
+        if (player.getVehicle() instanceof Player) {
+            player.leaveVehicle();
+            player.setFallDistance(0.0F);
+        }
     }
 
     public CompletableFuture<Optional<CarryRecord>> findActive(UUID playerUuid) {
@@ -394,6 +513,7 @@ public final class CarryService {
     public void shutdown() {
         requireMainThread();
         accepting = false;
+        Bukkit.getOnlinePlayers().forEach(CarryService::releasePlayerPassengers);
         for (CarrySession session : sessions.sessions()) {
             renderer.remove(session);
             sessions.remove(session.playerUuid());
@@ -516,6 +636,17 @@ public final class CarryService {
         }
     }
 
+    private static void releasePlayerPassengers(Player carrier) {
+        carrier.getPassengers().stream()
+                .filter(Player.class::isInstance)
+                .map(Player.class::cast)
+                .toList()
+                .forEach(passenger -> {
+                    carrier.removePassenger(passenger);
+                    passenger.setFallDistance(0.0F);
+                });
+    }
+
     private void requireMainThread() {
         if (!Bukkit.isPrimaryThread()) {
             throw new IllegalStateException("Bukkit world access must run on the server thread");
@@ -524,6 +655,24 @@ public final class CarryService {
 
     private void logFailure(String message, UUID carryId, Throwable error) {
         plugin.getLogger().log(Level.SEVERE, message + " [carryId=" + carryId + "]", error);
+    }
+
+    private void debugPlacement(
+            Player player,
+            CarrySession session,
+            Block destination,
+            BlockFace clickedFace,
+            String result
+    ) {
+        if (!plugin.getConfig().getBoolean("debug", false)) {
+            return;
+        }
+        plugin.getLogger().info("[debug] placement player=" + player.getName()
+                + " carryId=" + session.carryId()
+                + " type=" + session.payload().typeKey()
+                + " destination=" + destination.getX() + "," + destination.getY() + "," + destination.getZ()
+                + " clickedFace=" + clickedFace
+                + " result=" + result);
     }
 
     private static String displayType(String key) {

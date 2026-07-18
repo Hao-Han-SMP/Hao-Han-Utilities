@@ -1,6 +1,7 @@
 package vn.haohansmp.utilities.listener;
 
 import org.bukkit.block.Block;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -9,13 +10,16 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import vn.haohansmp.utilities.carry.CarryPreferences;
 import vn.haohansmp.utilities.carry.CarryService;
 
 public final class PickupPlaceListener implements Listener {
     private final CarryService carryService;
+    private final CarryPreferences preferences;
 
-    public PickupPlaceListener(CarryService carryService) {
+    public PickupPlaceListener(CarryService carryService, CarryPreferences preferences) {
         this.carryService = carryService;
+        this.preferences = preferences;
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
@@ -34,8 +38,11 @@ public final class PickupPlaceListener implements Listener {
             carryService.handlePlacement(event);
             return;
         }
+        if (!preferences.isEnabled(event.getPlayer())) {
+            return;
+        }
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK
-                || !event.getPlayer().getCurrentInput().isSprint()
+                || !preferences.activationKey(event.getPlayer()).isPressed(event.getPlayer().getCurrentInput())
                 || !hasEmptyHands(event.getPlayer().getInventory().getItem(EquipmentSlot.HAND),
                         event.getPlayer().getInventory().getItem(EquipmentSlot.OFF_HAND))) {
             return;
@@ -61,10 +68,21 @@ public final class PickupPlaceListener implements Listener {
             carryService.handleObstructedPlacement(event.getPlayer());
             return;
         }
-        if (!event.getPlayer().getCurrentInput().isSprint()
+        if (!preferences.isEnabled(event.getPlayer())
+                || !preferences.activationKey(event.getPlayer()).isPressed(event.getPlayer().getCurrentInput())
                 || !hasEmptyHands(event.getPlayer().getInventory().getItem(EquipmentSlot.HAND),
-                        event.getPlayer().getInventory().getItem(EquipmentSlot.OFF_HAND))
-                || !carryService.isSupportedPickupEntity(event.getRightClicked())) {
+                        event.getPlayer().getInventory().getItem(EquipmentSlot.OFF_HAND))) {
+            return;
+        }
+        if (event.getRightClicked() instanceof Player target) {
+            if (!carryService.isSupportedPickupPlayer(target)) {
+                return;
+            }
+            event.setCancelled(true);
+            carryService.pickupPlayer(event.getPlayer(), target);
+            return;
+        }
+        if (!carryService.isSupportedPickupEntity(event.getRightClicked())) {
             return;
         }
         event.setCancelled(true);

@@ -2,6 +2,7 @@ package vn.haohansmp.utilities.placement;
 
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.Orientation;
+import org.bukkit.Material;
 import org.bukkit.util.Vector;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +30,32 @@ class VanillaPlacementRulesTest {
         assertEquals(
                 Orientation.WEST_UP,
                 VanillaPlacementRules.crafterOrientation(BlockFace.WEST, BlockFace.SOUTH)
+        );
+    }
+
+    @Test
+    void recognizesPlainAndColoredShulkerBoxes() {
+        org.junit.jupiter.api.Assertions.assertTrue(VanillaPlacementRules.isShulkerBox(Material.SHULKER_BOX));
+        org.junit.jupiter.api.Assertions.assertTrue(VanillaPlacementRules.isShulkerBox(Material.PURPLE_SHULKER_BOX));
+        org.junit.jupiter.api.Assertions.assertFalse(VanillaPlacementRules.isShulkerBox(Material.BARREL));
+    }
+
+    @Test
+    void appliesVerticalFacingLikeVanilla() {
+        assertEquals(
+                BlockFace.UP,
+                VanillaPlacementRules.directionalFacing(
+                        Material.BARREL, BlockFace.DOWN, BlockFace.NORTH, BlockFace.UP)
+        );
+        assertEquals(
+                BlockFace.DOWN,
+                VanillaPlacementRules.directionalFacing(
+                        Material.BARREL, BlockFace.UP, BlockFace.NORTH, BlockFace.DOWN)
+        );
+        assertEquals(
+                BlockFace.DOWN,
+                VanillaPlacementRules.directionalFacing(
+                        Material.SHULKER_BOX, BlockFace.UP, BlockFace.NORTH, BlockFace.DOWN)
         );
     }
 }

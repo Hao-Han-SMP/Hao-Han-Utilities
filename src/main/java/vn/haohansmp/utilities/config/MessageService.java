@@ -10,8 +10,20 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 
 public final class MessageService {
+    private static final Set<String> DEBUG_ONLY_MESSAGES = Set.of(
+            "pickup-success",
+            "entity-pickup-success",
+            "player-pickup-success",
+            "place-success",
+            "entity-place-success",
+            "player-place-success",
+            "invalid-destination",
+            "invalid-player-destination"
+    );
+
     private final JavaPlugin plugin;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
     private YamlConfiguration messages;
@@ -43,6 +55,9 @@ public final class MessageService {
     }
 
     public void send(Player player, String key, Map<String, String> replacements) {
+        if (DEBUG_ONLY_MESSAGES.contains(key) && !plugin.getConfig().getBoolean("debug", false)) {
+            return;
+        }
         String text = messages.getString("prefix", "") + messages.getString(key, key);
         for (Map.Entry<String, String> replacement : replacements.entrySet()) {
             text = text.replace("<" + replacement.getKey() + ">", replacement.getValue());

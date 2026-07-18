@@ -91,13 +91,13 @@ public final class VanillaPlacementRules {
         return Orientation.valueOf(front.name() + "_" + top.name());
     }
 
-    private static BlockFace directionalFacing(
+    static BlockFace directionalFacing(
             Material material,
             BlockFace nearest,
             BlockFace horizontal,
             BlockFace clickedFace
     ) {
-        if (material.name().endsWith("_SHULKER_BOX") && clickedFace != null) {
+        if (isShulkerBox(material) && clickedFace != null) {
             return clickedFace;
         }
         if (material == Material.HOPPER && clickedFace != null) {
@@ -108,6 +108,10 @@ public final class VanillaPlacementRules {
             return nearest.getOppositeFace();
         }
         return horizontal.getOppositeFace();
+    }
+
+    static boolean isShulkerBox(Material material) {
+        return material == Material.SHULKER_BOX || material.name().endsWith("_SHULKER_BOX");
     }
 
     private static void orientGrindstone(

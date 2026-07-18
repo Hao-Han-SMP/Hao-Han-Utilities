@@ -3,7 +3,7 @@ version: '${version}'
 main: vn.haohansmp.utilities.HaoHanUtilitiesPlugin
 api-version: '1.21.11'
 author: Hao Han SMP
-description: Carry blocks and animals safely with crash recovery.
+description: Carry blocks, animals, and players safely with crash recovery.
 
 softdepend:
   - SoulAnchor
@@ -15,12 +15,12 @@ softdepend:
 commands:
   haohanutilities:
     description: Lệnh quản trị Hảo Hán Utilities
-    usage: /haohanutilities <info|reload|status|inspect|recover>
+    usage: /haohanutilities <info|toggle|bind|reload|status|inspect|recover>
     aliases: [hhu, carryblocks, carryblock, cb]
 
 permissions:
   haohanutilities.carry.use:
-    description: Cho phép carry block và động vật
+    description: Cho phép carry block, động vật và người chơi
     default: true
   haohanutilities.admin:
     description: Quản trị Hảo Hán Utilities

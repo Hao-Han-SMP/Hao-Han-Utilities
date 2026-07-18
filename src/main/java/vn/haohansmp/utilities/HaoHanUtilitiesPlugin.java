@@ -3,6 +3,7 @@ package vn.haohansmp.utilities;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
+import vn.haohansmp.utilities.carry.CarryPreferences;
 import vn.haohansmp.utilities.carry.CarryService;
 import vn.haohansmp.utilities.carry.CarrySessionManager;
 import vn.haohansmp.utilities.carry.CarrySnapshotService;
@@ -45,6 +46,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
 
         CarryRepository repository = new SQLiteCarryRepository(databaseManager);
         CarrySessionManager sessions = new CarrySessionManager();
+        CarryPreferences preferences = new CarryPreferences(this);
         MessageService messages = new MessageService(this);
         SoulAnchorIntegration soulAnchors = new SoulAnchorIntegration(this);
         soulAnchors.initialize();
@@ -58,6 +60,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
                 repository,
                 sessions,
                 validator,
+                preferences,
                 snapshots,
                 soulAnchors,
                 protection,
@@ -68,13 +71,13 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         PhantomSuppressionListener phantomSuppression = new PhantomSuppressionListener(this);
 
         PluginManager plugins = getServer().getPluginManager();
-        plugins.registerEvents(new PickupPlaceListener(carryService), this);
+        plugins.registerEvents(new PickupPlaceListener(carryService, preferences), this);
         plugins.registerEvents(new CarryRestrictionListener(this, carryService), this);
         plugins.registerEvents(new PlayerLifecycleListener(carryService, recovery), this);
         plugins.registerEvents(phantomSuppression, this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
-                this, carryService, validator, messages, phantomSuppression);
+                this, carryService, validator, preferences, messages, phantomSuppression);
         PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
         command.setExecutor(commandHandler);
         command.setTabCompleter(commandHandler);

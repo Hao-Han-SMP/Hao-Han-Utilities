@@ -9,30 +9,34 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import vn.haohansmp.utilities.carry.CarryActivationKey;
+import vn.haohansmp.utilities.carry.CarryPreferences;
 import vn.haohansmp.utilities.carry.CarryRecord;
 import vn.haohansmp.utilities.carry.CarryService;
 import vn.haohansmp.utilities.carry.CarryValidator;
 import vn.haohansmp.utilities.config.MessageService;
 import vn.haohansmp.utilities.phantom.PhantomSuppressionListener;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
 
 public final class HaoHanUtilitiesCommand implements CommandExecutor, TabCompleter {
     private final JavaPlugin plugin;
     private final CarryService carryService;
     private final CarryValidator validator;
+    private final CarryPreferences preferences;
     private final MessageService messages;
     private final PhantomSuppressionListener phantomSuppression;
 
     public HaoHanUtilitiesCommand(JavaPlugin plugin, CarryService carryService, CarryValidator validator,
-                                  MessageService messages, PhantomSuppressionListener phantomSuppression) {
+                                  CarryPreferences preferences, MessageService messages,
+                                  PhantomSuppressionListener phantomSuppression) {
         this.plugin = plugin;
         this.carryService = carryService;
         this.validator = validator;
+        this.preferences = preferences;
         this.messages = messages;
         this.phantomSuppression = phantomSuppression;
     }
@@ -43,6 +47,12 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             sender.sendMessage("Hảo Hán Utilities v" + plugin.getPluginMeta().getVersion()
                     + " — Carry Blocks + Animals + Phantom Suppression");
             return true;
+        }
+        if (args[0].equalsIgnoreCase("toggle")) {
+            return toggle(sender, args);
+        }
+        if (args[0].equalsIgnoreCase("bind")) {
+            return bind(sender, args);
         }
         if (!sender.hasPermission("haohanutilities.admin")) {
             sender.sendMessage("Bạn không có quyền dùng lệnh này.");
@@ -55,10 +65,62 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             case "inspect" -> inspect(sender, args);
             case "recover" -> recover(sender, args);
             default -> {
-                sender.sendMessage("Dùng: /" + label + " <info|reload|status|inspect|recover>");
+                sender.sendMessage("Dùng: /" + label + " <info|toggle|bind|reload|status|inspect|recover>");
                 yield true;
             }
         };
+    }
+
+    private boolean toggle(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Lệnh toggle cần chạy trong game.");
+            return true;
+        }
+        boolean enabled;
+        if (args.length < 2) {
+            enabled = preferences.toggle(player);
+        } else if (args[1].equalsIgnoreCase("on")) {
+            preferences.setEnabled(player, true);
+            enabled = true;
+        } else if (args[1].equalsIgnoreCase("off")) {
+            preferences.setEnabled(player, false);
+            enabled = false;
+        } else {
+            messages.send(player, "carry-toggle-usage");
+            return true;
+        }
+        if (enabled) {
+            messages.send(player, "carry-enabled");
+        } else {
+            carryService.releaseIfCarried(player);
+            if (carryService.isCarrying(player.getUniqueId())) {
+                messages.send(player, "carry-disabled-active");
+            } else {
+                messages.send(player, "carry-disabled");
+            }
+        }
+        return true;
+    }
+
+    private boolean bind(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Lệnh bind cần chạy trong game.");
+            return true;
+        }
+        if (args.length < 2) {
+            messages.send(player, "carry-bind-current", Map.of(
+                    "key", preferences.activationKey(player).displayName()
+            ));
+            return true;
+        }
+        CarryActivationKey key = CarryActivationKey.parse(args[1]).orElse(null);
+        if (key == null) {
+            messages.send(player, "carry-bind-usage");
+            return true;
+        }
+        preferences.setActivationKey(player, key);
+        messages.send(player, "carry-bind-success", Map.of("key", key.displayName()));
+        return true;
     }
 
     private boolean reload(CommandSender sender) {
@@ -163,7 +225,18 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return filter(List.of("info", "reload", "status", "inspect", "recover"), args[0]);
+        if (args.length == 1) {
+            List<String> commands = sender.hasPermission("haohanutilities.admin")
+                    ? List.of("info", "toggle", "bind", "reload", "status", "inspect", "recover")
+                    : List.of("info", "toggle", "bind");
+            return filter(commands, args[0]);
+        }
+        if (args[0].equalsIgnoreCase("toggle") && args.length == 2) {
+            return filter(List.of("on", "off"), args[1]);
+        }
+        if (args[0].equalsIgnoreCase("bind") && args.length == 2) {
+            return filter(List.of("sprint", "sneak"), args[1]);
+        }
         if ((args[0].equalsIgnoreCase("status") || args[0].equalsIgnoreCase("recover")) && args.length == 2) {
             return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }

@@ -17,7 +17,7 @@ Ngôn ngữ: Tiếng Việt | [English](README.en.md)
 
 Hao Han Utilities là plugin Paper/Purpur `1.21.11` tập trung vào hai tính năng:
 
-- **Carry:** người chơi có thể nhấc block chức năng hoặc động vật lên, mang đến vị trí khác rồi đặt xuống.
+- **Carry:** người chơi có thể nhấc block chức năng, động vật hoặc người chơi khác lên và mang đến vị trí khác.
 - **Phantom Suppression:** ngăn Phantom xuất hiện và xóa Phantom đang tồn tại trong các world đã tải.
 
 Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pack.
@@ -27,10 +27,14 @@ Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pac
 ### Nhấc vật
 
 1. Đảm bảo cả tay chính và tay phụ đều trống.
-2. Giữ phím sprint (mặc định là `Ctrl`).
-3. Chuột phải vào block hoặc động vật muốn nhấc.
+2. Giữ phím kích hoạt carry (mặc định là Sprint/`Ctrl`).
+3. Chuột phải vào block, động vật hoặc người chơi muốn nhấc.
 
 Nếu tay đang có đồ hoặc block không hỗ trợ carry, plugin không chặn thao tác và không gửi thông báo; Minecraft sẽ đặt block hoặc tương tác như bình thường.
+
+Carry mode được bật mặc định cho từng người chơi. Dùng `/hhu toggle` để bật/tắt; khi tắt, plugin không chặn tương tác chuột phải của người chơi đó. Có thể đổi phím giữ kích hoạt bằng `/hhu bind sprint` hoặc `/hhu bind sneak` (`ctrl` và `shift` cũng được chấp nhận). Bind đi theo cài đặt Sprint/Sneak phía client, kể cả khi người chơi đã đổi phím trong Controls.
+
+Nếu tắt mode trong lúc đang carry, người chơi vẫn có thể đặt vật đang giữ xuống an toàn; mode tắt sẽ áp dụng cho những lần nhấc tiếp theo.
 
 Người chơi chỉ có thể carry một vật tại một thời điểm. Container càng chứa nhiều đồ thì người chơi càng di chuyển chậm.
 
@@ -47,6 +51,12 @@ Các động vật và sinh vật thụ động được hỗ trợ sẽ giữ l
 - Máu, tuổi và biến thể.
 - Tên tùy chỉnh.
 - Equipment, inventory và Persistent Data Container.
+
+### Người chơi
+
+Giữ phím kích hoạt carry với hai tay trống rồi chuột phải vào người chơi khác để ôm họ. Người được ôm dùng pose ngồi của Minecraft, vẫn có thể nhìn xung quanh bình thường và nhấn phím Sneak (mặc định `Shift`) để tự thoát như khi ride entity.
+
+Người chơi đã tắt carry mode bằng `/hhu toggle off` sẽ không thể bị người khác ôm. Nếu họ tắt mode trong lúc đang được ôm, plugin cho họ xuống ngay lập tức.
 
 ### SoulAnchor
 
@@ -95,13 +105,25 @@ Yêu cầu:
 ## Cấu hình nhanh
 
 ```yaml
+debug: false
+
+placement:
+  maximum-distance: 5.0
+
 carrying:
+  # Trạng thái của người chơi chưa từng dùng lệnh toggle.
+  enabled-by-default: true
+  # Phím giữ mặc định khi nhấc vật: sprint hoặc sneak.
+  default-activation-key: sprint
   # Tốc độ khi mang vật thường hoặc container rỗng.
   movement-speed-multiplier: 0.75
   # Tốc độ khi container đầy; lượng đồ được nội suy giữa hai mức.
   full-container-movement-speed-multiplier: 0.35
 
 entities:
+  enabled: true
+
+players:
   enabled: true
 
 phantom-suppression:
@@ -114,6 +136,8 @@ phantom-suppression:
 | Lệnh | Mô tả |
 | --- | --- |
 | `/hhu info` | Hiển thị phiên bản và trạng thái plugin. |
+| `/hhu toggle [on\|off]` | Bật/tắt carry mode cá nhân; không truyền tham số sẽ đảo trạng thái. |
+| `/hhu bind <sprint\|sneak>` | Chọn phím giữ để kích hoạt carry (`ctrl`/`shift` là alias). |
 | `/hhu reload` | Tải lại config/messages và dọn Phantom đã tải. |
 | `/hhu status <player>` | Xem giao dịch carry hiện tại của người chơi. |
 | `/hhu inspect <carryId>` | Xem chi tiết một giao dịch carry. |

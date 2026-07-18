@@ -82,6 +82,31 @@ public final class CarryValidator {
         return null;
     }
 
+    public String validatePlayerPickup(Player carrier, Player target) {
+        String common = validateCommon(carrier, target.getWorld(), target.getLocation());
+        if (common != null) {
+            return common;
+        }
+        if (!plugin.getConfig().getBoolean("players.enabled", true)) {
+            return "unsupported-player";
+        }
+        if (carrier == target
+                || carrier.isInsideVehicle()
+                || !carrier.getPassengers().isEmpty()
+                || target.getGameMode() == GameMode.SPECTATOR
+                || target.isDead()
+                || target.isInsideVehicle()
+                || !target.getPassengers().isEmpty()
+                || sessions.isCarrying(target.getUniqueId())) {
+            return "invalid-player-state";
+        }
+        return null;
+    }
+
+    public boolean isPlayerCarryEnabled() {
+        return plugin.getConfig().getBoolean("players.enabled", true);
+    }
+
     public String validatePlacement(
             Player player,
             CarrySession session,
@@ -96,10 +121,6 @@ public final class CarryValidator {
             return "too-far";
         }
         if (!destination.isEmpty() && !destination.isReplaceable()) {
-            return "invalid-destination";
-        }
-        if (plugin.getConfig().getBoolean("placement.require-solid-support", true)
-                && !destination.getRelative(0, -1, 0).getType().isSolid()) {
             return "invalid-destination";
         }
         if (session.payload().kind().isBlockLike()) {
