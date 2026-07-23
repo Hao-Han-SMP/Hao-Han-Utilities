@@ -13,6 +13,7 @@ import vn.haohansmp.utilities.config.MessageService;
 import vn.haohansmp.utilities.database.CarryRepository;
 import vn.haohansmp.utilities.database.DatabaseManager;
 import vn.haohansmp.utilities.database.SQLiteCarryRepository;
+import vn.haohansmp.utilities.food.GoldenAppleListener;
 import vn.haohansmp.utilities.listener.CarryRestrictionListener;
 import vn.haohansmp.utilities.listener.PickupPlaceListener;
 import vn.haohansmp.utilities.listener.PlayerLifecycleListener;
@@ -75,6 +76,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(new CarryRestrictionListener(this, carryService), this);
         plugins.registerEvents(new PlayerLifecycleListener(carryService, recovery), this);
         plugins.registerEvents(phantomSuppression, this);
+        plugins.registerEvents(new GoldenAppleListener(this), this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression);

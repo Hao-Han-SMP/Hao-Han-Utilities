@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "vn.haohansmp"
-version = "2.1.0"
+version = "2.1.1"
 val pluginVersion = version.toString()
 
 repositories {
