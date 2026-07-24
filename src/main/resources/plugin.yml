@@ -25,6 +25,9 @@ permissions:
   haohanutilities.admin:
     description: Quản trị Hảo Hán Utilities
     default: op
+  haohanutilities.crops.use:
+    description: Cho phép tự động thu hoạch và trồng lại crop
+    default: true
   haohanutilities.bypass.protection:
     description: Bỏ qua kiểm tra protection khi carry block
     default: op

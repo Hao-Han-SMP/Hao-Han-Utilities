@@ -46,6 +46,11 @@ phantom-suppression:
   enabled: true
   remove-existing: true
 
+crop-replant:
+  enabled: true
+  break: true
+  right-click: true
+
 worlds:
   mode: BLACKLIST
   list:

@@ -35,6 +35,17 @@ public final class ProtectionService {
             return false;
         }
 
+        return canBreakBlock(player, block);
+    }
+
+    public boolean canBreakBlock(Player player, Block block) {
+        if (!plugin.getConfig().getBoolean("protection.enabled", true)) {
+            return true;
+        }
+        if (player.hasPermission("haohanutilities.bypass.protection")) {
+            return true;
+        }
+
         BlockBreakEvent breakProbe = new BlockBreakEvent(block, player);
         breakProbe.setDropItems(false);
         Bukkit.getPluginManager().callEvent(breakProbe);
