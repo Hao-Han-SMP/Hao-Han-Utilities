@@ -15,10 +15,12 @@ Language: [Tiếng Việt](README.md) | English
 
 ## Overview
 
-Hao Han Utilities is a Paper/Purpur `1.21.11` plugin focused on two features:
+Hao Han Utilities is a Paper/Purpur `1.21.11` plugin featuring:
 
 - **Carry:** pick up functional blocks, passive creatures, or other players and move them somewhere else.
 - **Phantom Suppression:** cancel Phantom spawns and remove existing Phantoms from loaded worlds.
+- **54-slot EnderChest:** expands EnderChest inventory to 54 slots (6 rows) with automatic 27-slot legacy item migration.
+- **Torch Ignition:** set entities on fire when attacking them with a Torch (Normal, Soul, or Redstone Torch) in your main hand.
 
 The plugin is completely server-side and requires no client mod or resource pack.
 
@@ -89,9 +91,24 @@ The list can be changed in `plugins/HaoHanUtilities/config.yml`.
 - If the server crashes or a player disconnects while carrying something, the state can be loaded from the database.
 - The database is stored at `plugins/HaoHanUtilities/carry-blocks.db`.
 
+## 54-slot EnderChest
+
+- Intercepts EnderChest interactions and opens a 54-slot GUI (6 rows).
+- Automatically migrates existing items from the player's vanilla 27-slot EnderChest upon first open.
+- Syncs the first 27 slots back to vanilla EnderChest for full compatibility with `/enderchest` commands or third-party plugins.
+- Safely persisted in player Persistent Data Containers (PDC).
+
+## Torch Ignition
+
+- Sets target entities on fire when hit with a torch in main hand.
+- **Normal Torch:** sets target on fire for 3 seconds.
+- **Soul Torch:** sets target on fire for 4 seconds (with soul fire particles).
+- **Redstone Torch:** sets target on fire for 1 second.
+- Fully respects land protection claims (WorldGuard, GriefPrevention, etc.) and non-PVP zones.
+
 ## Installation
 
-1. Build or download `HaoHanUtilities-2.0.0.jar`.
+1. Build or download `HaoHanUtilities-3.0.0.jar`.
 2. Copy it into the server's `plugins/` directory.
 3. Restart the server.
 4. Review `plugins/HaoHanUtilities/config.yml`.
@@ -129,6 +146,18 @@ players:
 phantom-suppression:
   enabled: true
   remove-existing: true
+
+ender-chest:
+  enabled: true
+  size: 54
+
+torch-fire:
+  enabled: true
+  duration-seconds:
+    torch: 3
+    soul-torch: 4
+    redstone-torch: 1
+  consume-torch: false
 ```
 
 ## Commands
@@ -140,7 +169,7 @@ phantom-suppression:
 | `/hhu bind <sprint\|sneak>` | Select the carry activation modifier (`ctrl`/`shift` are aliases). |
 | `/hhu reload` | Reload config/messages and clean loaded Phantoms. |
 | `/hhu status <player>` | Show a player's active carry transaction. |
-| `/hhu inspect <carryId>` | Inspect a carry transaction. |
+| `/hhu inspect <carryId>` | Show a carry transaction details. |
 | `/hhu recover <player> original` | Restore an object to its original location. |
 | `/hhu recover <player> here` | Restore an object at the admin's targeted location. |
 
@@ -163,5 +192,5 @@ Linux/macOS:
 The deployable JAR is written to:
 
 ```text
-build/libs/HaoHanUtilities-2.0.0.jar
+build/libs/HaoHanUtilities-3.0.0.jar
 ```

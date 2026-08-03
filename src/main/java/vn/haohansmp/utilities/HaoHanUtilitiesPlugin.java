@@ -11,6 +11,8 @@ import vn.haohansmp.utilities.carry.CarryValidator;
 import vn.haohansmp.utilities.command.HaoHanUtilitiesCommand;
 import vn.haohansmp.utilities.config.MessageService;
 import vn.haohansmp.utilities.crop.CropHarvestListener;
+import vn.haohansmp.utilities.enderchest.EnderChestListener;
+import vn.haohansmp.utilities.torch.TorchFireListener;
 import vn.haohansmp.utilities.database.CarryRepository;
 import vn.haohansmp.utilities.database.DatabaseManager;
 import vn.haohansmp.utilities.database.SQLiteCarryRepository;
@@ -79,6 +81,8 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(phantomSuppression, this);
         plugins.registerEvents(new GoldenAppleListener(this), this);
         plugins.registerEvents(new CropHarvestListener(this, protection), this);
+        plugins.registerEvents(new EnderChestListener(this, protection), this);
+        plugins.registerEvents(new TorchFireListener(this), this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression);

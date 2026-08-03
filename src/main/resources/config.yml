@@ -98,3 +98,15 @@ blocks:
     - LOOM
     - GRINDSTONE
     - ENCHANTING_TABLE
+
+ender-chest:
+  enabled: true
+  size: 54
+
+torch-fire:
+  enabled: true
+  duration-seconds:
+    torch: 3
+    soul-torch: 4
+    redstone-torch: 1
+  consume-torch: false

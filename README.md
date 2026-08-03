@@ -15,10 +15,12 @@ Ngôn ngữ: Tiếng Việt | [English](README.en.md)
 
 ## Giới thiệu
 
-Hao Han Utilities là plugin Paper/Purpur `1.21.11` tập trung vào hai tính năng:
+Hao Han Utilities là plugin Paper/Purpur `1.21.11` gồm các tính năng tiện ích:
 
 - **Carry:** người chơi có thể nhấc block chức năng, động vật hoặc người chơi khác lên và mang đến vị trí khác.
 - **Phantom Suppression:** ngăn Phantom xuất hiện và xóa Phantom đang tồn tại trong các world đã tải.
+- **54-slot EnderChest:** mở rộng EnderChest lên 54 ô (6 hàng), tự động chuyển đổi dữ liệu từ EnderChest 27 ô nguyên bản.
+- **Torch Ignition:** đánh thiêu cháy entity khi sử dụng Đuốc (Đuốc thường, Đuốc linh hồn, Đuốc đá đỏ) làm vũ khí cận chiến.
 
 Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pack.
 
@@ -89,9 +91,24 @@ Danh sách có thể chỉnh trong `plugins/HaoHanUtilities/config.yml`.
 - Nếu server crash hoặc người chơi thoát khi đang carry, trạng thái có thể được nạp lại từ database.
 - Dữ liệu được lưu tại `plugins/HaoHanUtilities/carry-blocks.db`.
 
+## EnderChest 54 Ô
+
+- Khi mở EnderChest, giao diện kho đồ nâng cấp lên 54 ô (6 hàng).
+- Tự động chuyển toàn bộ vật phẩm từ EnderChest 27 ô ban đầu của người chơi sang kho mới trong lần đầu mở.
+- Đồng bộ lại 27 ô đầu tiên về EnderChest vanilla để tương thích hoàn toàn với lệnh `/enderchest` hoặc plugin khác.
+- Lưu trữ an toàn trong Persistent Data Container (PDC) của người chơi.
+
+## Đuốc Gây Cháy (Torch Fire)
+
+- Đánh thiêu cháy đối phương hoặc quái vật khi dùng đuốc trên tay chính.
+- **Đuốc thường (Torch):** thiêu cháy 3 giây.
+- **Đuốc linh hồn (Soul Torch):** thiêu cháy 4 giây với hiệu ứng lửa linh hồn.
+- **Đuốc đá đỏ (Redstone Torch):** thiêu cháy 1 giây.
+- Tự động tuân thủ quyền bảo vệ vùng (WorldGuard, GriefPrevention, v.v.) và khu vực chống PVP.
+
 ## Cài đặt
 
-1. Build hoặc tải `HaoHanUtilities-2.0.0.jar`.
+1. Build hoặc tải `HaoHanUtilities-3.0.0.jar`.
 2. Chép file vào thư mục `plugins/` của server.
 3. Khởi động lại server.
 4. Chỉnh `plugins/HaoHanUtilities/config.yml` nếu cần.
@@ -129,6 +146,18 @@ players:
 phantom-suppression:
   enabled: true
   remove-existing: true
+
+ender-chest:
+  enabled: true
+  size: 54
+
+torch-fire:
+  enabled: true
+  duration-seconds:
+    torch: 3
+    soul-torch: 4
+    redstone-torch: 1
+  consume-torch: false
 ```
 
 ## Lệnh
@@ -163,5 +192,5 @@ Linux/macOS:
 File deploy được tạo tại:
 
 ```text
-build/libs/HaoHanUtilities-2.0.0.jar
+build/libs/HaoHanUtilities-3.0.0.jar
 ```
