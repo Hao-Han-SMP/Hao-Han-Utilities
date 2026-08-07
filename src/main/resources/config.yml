@@ -110,3 +110,14 @@ torch-fire:
     soul-torch: 4
     redstone-torch: 1
   consume-torch: false
+
+crystal-heart:
+  enabled: true
+  max-health-cap: 60.0
+  min-health-cap: 20.0
+  hp-per-heart: 2.0
+  death-hp-loss: 2.0
+  regeneration-duration-seconds: 10
+  recipe:
+    enabled: true
+

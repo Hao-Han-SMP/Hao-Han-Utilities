@@ -3,7 +3,7 @@ plugins {
     id("com.gradleup.shadow") version "8.3.6"
 }
 
-group = "vn.haohansmp"
+group = "vn.haohan"
 version = "3.0.0"
 val pluginVersion = version.toString()
 
@@ -49,7 +49,7 @@ tasks {
 
     shadowJar {
         archiveClassifier.set("")
-        relocate("org.sqlite", "vn.haohansmp.utilities.libs.sqlite")
+        relocate("org.sqlite", "vn.haohan.utilities.libs.sqlite")
     }
 
     jar {

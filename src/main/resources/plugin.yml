@@ -1,6 +1,6 @@
 name: HaoHanUtilities
 version: '${version}'
-main: vn.haohansmp.utilities.HaoHanUtilitiesPlugin
+main: vn.haohan.utilities.HaoHanUtilitiesPlugin
 api-version: '1.21.11'
 author: Hao Han SMP
 description: Carry blocks, animals, and players safely with crash recovery.
