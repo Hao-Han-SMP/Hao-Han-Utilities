@@ -128,7 +128,8 @@ public final class CarryValidator {
                 if (!destination.canPlace(CarrySnapshotService.placementBlockData(
                         player,
                         session.payload(),
-                        clickedFace
+                        clickedFace,
+                        destination
                 ))) {
                     return "invalid-destination";
                 }

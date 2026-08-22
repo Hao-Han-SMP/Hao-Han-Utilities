@@ -293,7 +293,8 @@ public final class CarryService {
             BlockData data = CarrySnapshotService.placementBlockData(
                     player,
                     session.payload(),
-                    clickedFace
+                    clickedFace,
+                    destination
             );
             if (!protection.canPlaceBlock(player, destination, data, session.payload())) {
                 session.cancelPlacement();

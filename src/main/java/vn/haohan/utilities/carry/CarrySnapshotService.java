@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Waterlogged;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
@@ -118,6 +119,7 @@ public final class CarrySnapshotService {
         BlockData placementData = player == null
                 ? placementBlockData(payload)
                 : placementBlockData(player, payload, clickedFace);
+        placementData = preserveWater(destination, placementData);
         destination.setBlockData(placementData, false);
         ItemStack storedItem = ItemStack.deserializeBytes(payload.data());
         if (!(storedItem.getItemMeta() instanceof BlockStateMeta meta) || !meta.hasBlockState()) {
@@ -198,6 +200,34 @@ public final class CarrySnapshotService {
     ) {
         BlockData data = placementBlockData(payload);
         return VanillaPlacementRules.orient(data, player, clickedFace);
+    }
+
+    public static BlockData placementBlockData(
+            Player player,
+            CarryPayload payload,
+            BlockFace clickedFace,
+            Block destination
+    ) {
+        return preserveWater(
+                destination,
+                placementBlockData(player, payload, clickedFace)
+        );
+    }
+
+    private static BlockData preserveWater(Block destination, BlockData placementData) {
+        if (placementData instanceof Waterlogged waterlogged) {
+            // Keep water carried in the captured BlockData. Also emulate vanilla
+            // placement when a waterloggable block replaces a water block.
+            waterlogged.setWaterlogged(shouldWaterlog(
+                    waterlogged.isWaterlogged(),
+                    destination.getType()
+            ));
+        }
+        return placementData;
+    }
+
+    static boolean shouldWaterlog(boolean carriedWaterlogged, Material destinationType) {
+        return carriedWaterlogged || destinationType == Material.WATER;
     }
 
     public Entity findPlacedEntity(BlockPosition position, UUID carryId) {
