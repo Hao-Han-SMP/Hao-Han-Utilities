@@ -51,6 +51,29 @@ crop-replant:
   break: true
   right-click: true
 
+concrete-mixer:
+  enabled: true
+  require-permission: false
+  lower-water-level: true
+  effects:
+    enabled: true
+    splash:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: ENTITY_GENERIC_SPLASH
+        volume: 0.75
+        pitch: 1.0
+    transform:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: BLOCK_FIRE_EXTINGUISH
+        volume: 0.65
+        pitch: 1.25
+
 worlds:
   mode: BLACKLIST
   list:
@@ -120,4 +143,3 @@ crystal-heart:
   regeneration-duration-seconds: 10
   recipe:
     enabled: true
-

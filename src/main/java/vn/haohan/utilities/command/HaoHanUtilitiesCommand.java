@@ -53,6 +53,9 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("concretemixer")) {
+            return concreteMixer(sender, args);
+        }
         if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
             sender.sendMessage("Hảo Hán Utilities v" + plugin.getPluginMeta().getVersion()
                     + " — Carry Blocks + Animals + Phantom Suppression + Crystal Heart");
@@ -80,6 +83,25 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
                 yield true;
             }
         };
+    }
+
+    private boolean concreteMixer(CommandSender sender, String[] args) {
+        if (args.length == 0 || args[0].equalsIgnoreCase("version") || args[0].equalsIgnoreCase("ver")) {
+            sender.sendMessage("ConcreteMixer v" + plugin.getPluginMeta().getVersion());
+            sender.sendMessage("→ Thả concrete powder vào cauldron nước để tạo concrete.");
+            return true;
+        }
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("concretemixer.admin") && !sender.hasPermission("haohanutilities.admin")) {
+                sender.sendMessage("Bạn không có quyền dùng lệnh này.");
+                return true;
+            }
+            plugin.reloadConfig();
+            sender.sendMessage("ConcreteMixer đã reload cấu hình.");
+            return true;
+        }
+        sender.sendMessage("Dùng: /concretemixer <version|reload>");
+        return true;
     }
 
     private boolean heart(CommandSender sender, String[] args) {

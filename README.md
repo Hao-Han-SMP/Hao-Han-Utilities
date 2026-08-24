@@ -21,6 +21,7 @@ Hao Han Utilities là plugin Paper/Purpur `1.21.11` gồm các tính năng tiệ
 - **Phantom Suppression:** ngăn Phantom xuất hiện và xóa Phantom đang tồn tại trong các world đã tải.
 - **54-slot EnderChest:** mở rộng EnderChest lên 54 ô (6 hàng), tự động chuyển đổi dữ liệu từ EnderChest 27 ô nguyên bản.
 - **Torch Ignition:** đánh thiêu cháy entity khi sử dụng Đuốc (Đuốc thường, Đuốc linh hồn, Đuốc đá đỏ) làm vũ khí cận chiến.
+- **Concrete Mixer:** dùng cauldron nước để đổi concrete powder thành concrete cùng màu.
 
 Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pack.
 
@@ -34,7 +35,7 @@ Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pac
 
 Nếu tay đang có đồ hoặc block không hỗ trợ carry, plugin không chặn thao tác và không gửi thông báo; Minecraft sẽ đặt block hoặc tương tác như bình thường.
 
-Carry mode được bật mặc định cho từng người chơi. Dùng `/hhu toggle` để bật/tắt; khi tắt, plugin không chặn tương tác chuột phải của người chơi đó. Có thể đổi phím giữ kích hoạt bằng `/hhu bind sprint` hoặc `/hhu bind sneak` (`ctrl` và `shift` cũng được chấp nhận). Bind đi theo cài đặt Sprint/Sneak phía client, kể cả khi người chơi đã đổi phím trong Controls.
+Carry mode được bật mặc định cho từng người chơi. Dùng `/hhu toggle` để bật/tắt; khi tắt, plugin không chặn tương tác chuột phải của người chơi đó. Có thể đổi control giữ kích hoạt bằng `/hhu bind sprint` hoặc `/hhu bind sneak`. Bind đi theo cài đặt Sprint/Sneak phía client, kể cả khi người chơi đã đổi phím trong Controls.
 
 Nếu tắt mode trong lúc đang carry, người chơi vẫn có thể đặt vật đang giữ xuống an toàn; mode tắt sẽ áp dụng cho những lần nhấc tiếp theo.
 
@@ -57,6 +58,15 @@ Các động vật và sinh vật thụ động được hỗ trợ sẽ giữ l
 ### Người chơi
 
 Giữ phím kích hoạt carry với hai tay trống rồi chuột phải vào người chơi khác để ôm họ. Người được ôm dùng pose ngồi của Minecraft, vẫn có thể nhìn xung quanh bình thường và nhấn phím Sneak (mặc định `Shift`) để tự thoát như khi ride entity.
+
+### Tương thích GSit
+
+Nếu server có GSit, right-click người chơi được điều phối như sau:
+
+- Right-click thường: gọi GSit để ngồi lên đầu người chơi.
+- Giữ phím carry (mặc định Sprint/Ctrl) rồi right-click: carry người chơi.
+
+Tích hợp này dùng GSit API và không đóng gói GSit vào plugin. Trong `plugins/GSit/config.yml`, giữ `Options.PlayerSit.allow-player-sit-on-player: true` để API có thể tạo trạng thái ngồi; listener của HaoHanUtilities đã chặn click mặc định trước khi GSit xử lý, tránh tạo hai hành động cùng lúc. Sau khi đổi cấu hình GSit, dùng `/gsitreload` hoặc khởi động lại server.
 
 Người chơi đã tắt carry mode bằng `/hhu toggle off` sẽ không thể bị người khác ôm. Nếu họ tắt mode trong lúc đang được ôm, plugin cho họ xuống ngay lập tức.
 
@@ -108,7 +118,7 @@ Danh sách có thể chỉnh trong `plugins/HaoHanUtilities/config.yml`.
 
 ## Cài đặt
 
-1. Build hoặc tải `HaoHanUtilities-3.0.0.jar`.
+1. Build hoặc tải `HaoHanUtilities-3.1.0.jar`.
 2. Chép file vào thư mục `plugins/` của server.
 3. Khởi động lại server.
 4. Chỉnh `plugins/HaoHanUtilities/config.yml` nếu cần.
@@ -158,6 +168,29 @@ torch-fire:
     soul-torch: 4
     redstone-torch: 1
   consume-torch: false
+
+concrete-mixer:
+  enabled: true
+  require-permission: false
+  lower-water-level: true
+  effects:
+    enabled: true
+    splash:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: ENTITY_GENERIC_SPLASH
+        volume: 0.75
+        pitch: 1.0
+    transform:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: BLOCK_FIRE_EXTINGUISH
+        volume: 0.65
+        pitch: 1.25
 ```
 
 ## Lệnh
@@ -166,7 +199,7 @@ torch-fire:
 | --- | --- |
 | `/hhu info` | Hiển thị phiên bản và trạng thái plugin. |
 | `/hhu toggle [on\|off]` | Bật/tắt carry mode cá nhân; không truyền tham số sẽ đảo trạng thái. |
-| `/hhu bind <sprint\|sneak>` | Chọn phím giữ để kích hoạt carry (`ctrl`/`shift` là alias). |
+| `/hhu bind <sprint\|sneak>` | Chọn control giữ để kích hoạt carry; phím vật lý được đổi trong Controls. |
 | `/hhu reload` | Tải lại config/messages và dọn Phantom đã tải. |
 | `/hhu status <player>` | Xem giao dịch carry hiện tại của người chơi. |
 | `/hhu inspect <carryId>` | Xem chi tiết một giao dịch carry. |
@@ -192,5 +225,5 @@ Linux/macOS:
 File deploy được tạo tại:
 
 ```text
-build/libs/HaoHanUtilities-3.0.0.jar
+build/libs/HaoHanUtilities-3.1.0.jar
 ```

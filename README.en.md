@@ -21,6 +21,7 @@ Hao Han Utilities is a Paper/Purpur `1.21.11` plugin featuring:
 - **Phantom Suppression:** cancel Phantom spawns and remove existing Phantoms from loaded worlds.
 - **54-slot EnderChest:** expands EnderChest inventory to 54 slots (6 rows) with automatic 27-slot legacy item migration.
 - **Torch Ignition:** set entities on fire when attacking them with a Torch (Normal, Soul, or Redstone Torch) in your main hand.
+- **Concrete Mixer:** use water cauldrons to turn concrete powder into matching concrete.
 
 The plugin is completely server-side and requires no client mod or resource pack.
 
@@ -34,7 +35,7 @@ The plugin is completely server-side and requires no client mod or resource pack
 
 If either hand contains an item or the target block is unsupported, the plugin leaves the interaction untouched and sends no message, so vanilla placement or interaction continues normally.
 
-Carry mode is enabled by default for each player. Use `/hhu toggle` to enable or disable it; while disabled, the plugin does not intercept that player's right-click interactions. The activation modifier can be changed with `/hhu bind sprint` or `/hhu bind sneak` (`ctrl` and `shift` are also accepted). The binding follows the client's Sprint/Sneak control, including custom client key mappings.
+Carry mode is enabled by default for each player. Use `/hhu toggle` to enable or disable it; while disabled, the plugin does not intercept that player's right-click interactions. The activation control can be changed with `/hhu bind sprint` or `/hhu bind sneak`. The binding follows the client's Sprint/Sneak control, including custom client key mappings.
 
 If the mode is disabled while an object is already being carried, the player can still place that object safely; the disabled state applies to future pickups.
 
@@ -108,7 +109,7 @@ The list can be changed in `plugins/HaoHanUtilities/config.yml`.
 
 ## Installation
 
-1. Build or download `HaoHanUtilities-3.0.0.jar`.
+1. Build or download `HaoHanUtilities-3.1.0.jar`.
 2. Copy it into the server's `plugins/` directory.
 3. Restart the server.
 4. Review `plugins/HaoHanUtilities/config.yml`.
@@ -158,6 +159,29 @@ torch-fire:
     soul-torch: 4
     redstone-torch: 1
   consume-torch: false
+
+concrete-mixer:
+  enabled: true
+  require-permission: false
+  lower-water-level: true
+  effects:
+    enabled: true
+    splash:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: ENTITY_GENERIC_SPLASH
+        volume: 0.75
+        pitch: 1.0
+    transform:
+      particles:
+        enabled: true
+      sound:
+        enabled: true
+        name: BLOCK_FIRE_EXTINGUISH
+        volume: 0.65
+        pitch: 1.25
 ```
 
 ## Commands
@@ -166,7 +190,7 @@ torch-fire:
 | --- | --- |
 | `/hhu info` | Show the plugin version and status. |
 | `/hhu toggle [on\|off]` | Toggle personal carry mode; omit the argument to invert its state. |
-| `/hhu bind <sprint\|sneak>` | Select the carry activation modifier (`ctrl`/`shift` are aliases). |
+| `/hhu bind <sprint\|sneak>` | Select the carry activation control; the physical key is changed in Controls. |
 | `/hhu reload` | Reload config/messages and clean loaded Phantoms. |
 | `/hhu status <player>` | Show a player's active carry transaction. |
 | `/hhu inspect <carryId>` | Show a carry transaction details. |
@@ -192,5 +216,5 @@ Linux/macOS:
 The deployable JAR is written to:
 
 ```text
-build/libs/HaoHanUtilities-3.0.0.jar
+build/libs/HaoHanUtilities-3.1.0.jar
 ```

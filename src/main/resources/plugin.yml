@@ -3,7 +3,7 @@ version: '${version}'
 main: vn.haohan.utilities.HaoHanUtilitiesPlugin
 api-version: '1.21.11'
 author: Hao Han SMP
-description: Carry blocks, animals, and players safely with crash recovery.
+description: Carry and utility features with crash recovery.
 
 softdepend:
   - SoulAnchor
@@ -11,12 +11,16 @@ softdepend:
   - GriefPrevention
   - BlockLocker
   - BetterTeams
+  - GSit
 
 commands:
   haohanutilities:
     description: Lệnh quản trị Hảo Hán Utilities
     usage: /haohanutilities <info|toggle|bind|reload|status|inspect|recover>
     aliases: [hhu, carryblocks, carryblock, cb]
+  concretemixer:
+    description: Hiển thị thông tin Concrete Mixer hoặc reload cấu hình
+    usage: /concretemixer <version|reload>
 
 permissions:
   haohanutilities.carry.use:
@@ -28,6 +32,15 @@ permissions:
   haohanutilities.crops.use:
     description: Cho phép tự động thu hoạch và trồng lại crop
     default: true
+  haohanutilities.concrete-mixer:
+    description: Cho phép đổi concrete powder thành concrete bằng cauldron nước
+    default: true
+  concretemixer.cauldrons:
+    description: Cho phép dùng cauldron để tạo concrete
+    default: true
+  concretemixer.admin:
+    description: Cho phép reload cấu hình Concrete Mixer
+    default: op
   haohanutilities.bypass.protection:
     description: Bỏ qua kiểm tra protection khi carry block
     default: op

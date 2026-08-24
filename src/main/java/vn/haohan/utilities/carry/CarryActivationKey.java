@@ -6,8 +6,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 public enum CarryActivationKey {
-    SPRINT("sprint", "Sprint (mặc định Ctrl)"),
-    SNEAK("sneak", "Sneak (mặc định Shift)");
+    SPRINT("sprint", "Sprint"),
+    SNEAK("sneak", "Sneak");
 
     private final String configName;
     private final String displayName;
@@ -37,8 +37,8 @@ public enum CarryActivationKey {
             return Optional.empty();
         }
         return switch (value.trim().toLowerCase(Locale.ROOT)) {
-            case "sprint", "ctrl", "control" -> Optional.of(SPRINT);
-            case "sneak", "shift", "crouch" -> Optional.of(SNEAK);
+            case "sprint" -> Optional.of(SPRINT);
+            case "sneak" -> Optional.of(SNEAK);
             default -> Optional.empty();
         };
     }

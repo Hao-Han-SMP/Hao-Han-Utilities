@@ -8,16 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CarryActivationKeyTest {
     @Test
-    void parsesSupportedNamesAndPhysicalKeyAliases() {
+    void parsesOnlyServerVisibleControls() {
         assertEquals(CarryActivationKey.SPRINT, CarryActivationKey.parse("sprint").orElseThrow());
-        assertEquals(CarryActivationKey.SPRINT, CarryActivationKey.parse("CTRL").orElseThrow());
         assertEquals(CarryActivationKey.SNEAK, CarryActivationKey.parse("sneak").orElseThrow());
-        assertEquals(CarryActivationKey.SNEAK, CarryActivationKey.parse("Shift").orElseThrow());
     }
 
     @Test
     void rejectsUnsupportedKeys() {
         assertTrue(CarryActivationKey.parse("space").isEmpty());
+        assertTrue(CarryActivationKey.parse("ctrl").isEmpty());
+        assertTrue(CarryActivationKey.parse("shift").isEmpty());
         assertTrue(CarryActivationKey.parse(null).isEmpty());
     }
 
