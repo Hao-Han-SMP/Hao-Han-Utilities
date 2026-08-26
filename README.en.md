@@ -18,6 +18,7 @@ Language: [Tiếng Việt](README.md) | English
 Hao Han Utilities is a Paper/Purpur `1.21.11` plugin featuring:
 
 - **Carry:** pick up functional blocks, passive creatures, or other players and move them somewhere else.
+- **Dog Fetch:** charge and throw sticks for your tamed dogs to fetch and bring back to you.
 - **Phantom Suppression:** cancel Phantom spawns and remove existing Phantoms from loaded worlds.
 - **54-slot EnderChest:** expands EnderChest inventory to 54 slots (6 rows) with automatic 27-slot legacy item migration.
 - **Torch Ignition:** set entities on fire when attacking them with a Torch (Normal, Soul, or Redstone Torch) in your main hand.
@@ -73,6 +74,15 @@ Only the anchor's owner can pick it up and move it.
 
 SoulAnchor support is optional; Hao Han Utilities works normally without it.
 
+## Dog Fetch
+
+- **Excited Waiting:** When you hold a **Stick** in your hand, nearby standing tamed dogs immediately notice you, sprint close to you, and excitedly circle around you with panting sounds and playful hops while waiting for you to throw the stick. *(Sitting dogs will stay seated and will not approach you)*.
+- **Charge Throwing:** Hold **Shift (Sneak) + Right-Click** with the stick to start charging your throw. Throw distance and velocity scale according to how long you charge.
+- **Tiny White Particle Trajectory:** Only when charging, a real-time predictive trajectory appears using tiny, subtle white dust particles along with a power meter on the Action Bar.
+- **Release to Throw:** Release Right-Click or release Shift to launch the stick with the charged force.
+- **Fetch & Return:** Your nearest standing dog sprints after the stick, picks it up (visibly held in its mouth), and brings it right back to your inventory with happy barking and heart particles.
+- If the dog is commanded to sit or you change worlds, the dog safely drops the stick.
+
 ## Supported Blocks
 
 Default supported blocks include:
@@ -105,7 +115,7 @@ The list can be changed in `plugins/HaoHanUtilities/config.yml`.
 - **Normal Torch:** sets target on fire for 3 seconds.
 - **Soul Torch:** sets target on fire for 4 seconds (with soul fire particles).
 - **Redstone Torch:** sets target on fire for 1 second.
-- Fully respects land protection claims (WorldGuard, GriefPrevention, etc.) and non-PVP zones.
+- Fully respects land protection claims (WorldGuard, GriefPrevention, v.v.) and non-PVP zones.
 
 ## Installation
 
@@ -143,6 +153,21 @@ entities:
 
 players:
   enabled: true
+
+dog-fetch:
+  enabled: true
+  search-radius: 32.0
+  min-throw-velocity: 0.55
+  max-throw-velocity: 1.85
+  max-charge-ticks: 24
+  run-speed-multiplier: 1.55
+  return-speed-multiplier: 1.40
+  show-stick-in-mouth: true
+  require-permission: false
+  excited-wait:
+    enabled: true
+    speed-multiplier: 1.45
+    circle-radius: 2.6
 
 phantom-suppression:
   enabled: true

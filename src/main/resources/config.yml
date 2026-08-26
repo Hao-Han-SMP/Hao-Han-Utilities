@@ -143,3 +143,27 @@ crystal-heart:
   regeneration-duration-seconds: 10
   recipe:
     enabled: true
+
+dog-fetch:
+  # Bật tính năng ném gậy (stick) cho chó thuần hóa nhặt
+  enabled: true
+  # Bán kính tìm chó thuần hóa gần bạn nhất (block)
+  search-radius: 32.0
+  # Lực ném gậy tối thiểu và tối đa khi gồng
+  min-throw-velocity: 0.55
+  max-throw-velocity: 1.85
+  # Thời gian gồng tối đa (ticks, 20 ticks = 1 giây)
+  max-charge-ticks: 24
+  # Tốc độ chó chạy ra nhặt gậy
+  run-speed-multiplier: 1.55
+  # Tốc độ chó chạy về trả gậy cho chủ
+  return-speed-multiplier: 1.40
+  # Hiển thị gậy ngậm trong miệng chó khi nhặt về
+  show-stick-in-mouth: true
+  # Yêu cầu permission haohanutilities.dogfetch.use
+  require-permission: false
+  # Chó phấn khích chạy lại gần và chạy vòng quanh khi bạn cầm gậy (chỉ áp dụng với chó đang đứng)
+  excited-wait:
+    enabled: true
+    speed-multiplier: 1.45
+    circle-radius: 2.6

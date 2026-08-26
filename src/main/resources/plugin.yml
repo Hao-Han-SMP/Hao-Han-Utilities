@@ -26,6 +26,9 @@ permissions:
   haohanutilities.carry.use:
     description: Cho phép carry block, động vật và người chơi
     default: true
+  haohanutilities.dogfetch.use:
+    description: Cho phép ném gậy để chó thuần hóa chạy đi nhặt và trả về
+    default: true
   haohanutilities.admin:
     description: Quản trị Hảo Hán Utilities
     default: op

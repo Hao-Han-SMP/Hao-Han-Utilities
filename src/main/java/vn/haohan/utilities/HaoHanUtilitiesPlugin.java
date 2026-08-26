@@ -16,6 +16,8 @@ import vn.haohan.utilities.database.CarryRepository;
 import vn.haohan.utilities.database.DatabaseManager;
 import vn.haohan.utilities.database.SQLiteCarryRepository;
 import vn.haohan.utilities.enderchest.EnderChestListener;
+import vn.haohan.utilities.fetch.DogFetchListener;
+import vn.haohan.utilities.fetch.DogFetchService;
 import vn.haohan.utilities.food.GoldenAppleListener;
 import vn.haohan.utilities.heart.CrystalHeartItem;
 import vn.haohan.utilities.heart.CrystalHeartListener;
@@ -41,6 +43,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
     private CarryRenderer renderer;
     private CrystalHeartItem heartItem;
     private RottenFleshSmokingRecipe rottenFleshSmokingRecipe;
+    private DogFetchService dogFetchService;
 
     @Override
     public void onEnable() {
@@ -87,6 +90,9 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         rottenFleshSmokingRecipe.register();
         CrystalHeartListener heartListener = new CrystalHeartListener(this, heartItem);
 
+        dogFetchService = new DogFetchService(this);
+        dogFetchService.start();
+
         PluginManager plugins = getServer().getPluginManager();
         GSitIntegration gsit = new GSitIntegration();
         plugins.registerEvents(new PickupPlaceListener(carryService, preferences, gsit), this);
@@ -99,6 +105,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(new EnderChestListener(this, protection), this);
         plugins.registerEvents(new TorchFireListener(this), this);
         plugins.registerEvents(heartListener, this);
+        plugins.registerEvents(new DogFetchListener(this, dogFetchService), this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener);
@@ -109,7 +116,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         renderer.start();
         int removedPhantoms = phantomSuppression.cleanupLoadedWorlds();
         recovery.recoverOnStartup();
-        getLogger().info("Hảo Hán Utilities enabled. Removed " + removedPhantoms + " loaded Phantom(s).");
+        getLogger().info("H\u1ea3o H\u00e1n Utilities enabled. Removed " + removedPhantoms + " loaded Phantom(s).");
     }
 
     @Override
@@ -118,5 +125,6 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         if (renderer != null) renderer.stop();
         if (heartItem != null) heartItem.unregisterRecipe();
         if (rottenFleshSmokingRecipe != null) rottenFleshSmokingRecipe.unregister();
+        if (dogFetchService != null) dogFetchService.shutdown();
     }
 }

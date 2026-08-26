@@ -18,6 +18,7 @@ Ngôn ngữ: Tiếng Việt | [English](README.en.md)
 Hao Han Utilities là plugin Paper/Purpur `1.21.11` gồm các tính năng tiện ích:
 
 - **Carry:** người chơi có thể nhấc block chức năng, động vật hoặc người chơi khác lên và mang đến vị trí khác.
+- **Dog Fetch:** gồng ném gậy (stick) đi để chó thuần hóa chạy ra nhặt và mang về trả lại cho bạn.
 - **Phantom Suppression:** ngăn Phantom xuất hiện và xóa Phantom đang tồn tại trong các world đã tải.
 - **54-slot EnderChest:** mở rộng EnderChest lên 54 ô (6 hàng), tự động chuyển đổi dữ liệu từ EnderChest 27 ô nguyên bản.
 - **Torch Ignition:** đánh thiêu cháy entity khi sử dụng Đuốc (Đuốc thường, Đuốc linh hồn, Đuốc đá đỏ) làm vũ khí cận chiến.
@@ -81,6 +82,15 @@ Nếu server cài `SoulAnchor plugin`, người chơi có thể carry nguyên m�
 Chỉ chủ sở hữu của anchor mới có thể bưng anchor đi
 
 SoulAnchor là tích hợp tùy chọn; Hao Han Utilities vẫn hoạt động bình thường khi không cài plugin này.
+
+## Chó Nhặt Gậy (Dog Fetch)
+
+- **Phấn khích chờ ném gậy:** Khi bạn cầm **Gậy (Stick)** trên tay, những chú chó thuần hóa đang đứng xung quanh sẽ lập tức chú ý, chạy nhanh lại gần bạn và có xác suất cao chạy vòng quanh bạn với vẻ mặt háo hức, thở gấp và nhảy chồm chồm chờ bạn ném gậy. *(Lưu ý: Chú chó nào đang ngồi sẽ ngồi yên, không chạy lại và không bị ép đứng dậy)*.
+- **Gồng ném (Charge Throw):** Giữ **Shift (Sneak) + Chuột phải** vào cây gậy để bắt đầu gồng lực ném. Ném xa hay gần phụ thuộc vào thời gian bạn gồng mạnh hay yếu.
+- **Tia quỹ đạo hạt trắng (Trajectories):** Chỉ khi bạn bắt đầu gồng, đường dự đoán quỹ đạo bay theo thời gian thực mới xuất hiện dưới dạng các hạt trắng nhỏ li ti (không che tầm nhìn) cùng thanh đo lực trên Action Bar.
+- **Thả để ném:** Thả phím Chuột phải hoặc nhả Shift để phóng gậy bay đi với vận tốc tương ứng mức lực đã gồng.
+- **Nhặt & Trả gậy:** Chú chó đang đứng ở gần nhất sẽ phóng nhanh ra nhặt (gậy hiển thị ngậm ngang mõm) rồi chạy quay lại trả vào túi đồ cho bạn kèm hiệu ứng tim và tiếng sủa vui mừng.
+- Nếu người chơi ra lệnh cho chó ngồi hoặc đổi thế giới, chó sẽ an toàn thả gậy xuống đất.
 
 ## Block được hỗ trợ
 
@@ -152,6 +162,21 @@ entities:
 
 players:
   enabled: true
+
+dog-fetch:
+  enabled: true
+  search-radius: 32.0
+  min-throw-velocity: 0.55
+  max-throw-velocity: 1.85
+  max-charge-ticks: 24
+  run-speed-multiplier: 1.55
+  return-speed-multiplier: 1.40
+  show-stick-in-mouth: true
+  require-permission: false
+  excited-wait:
+    enabled: true
+    speed-multiplier: 1.45
+    circle-radius: 2.6
 
 phantom-suppression:
   enabled: true
