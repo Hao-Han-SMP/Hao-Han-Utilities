@@ -136,7 +136,7 @@ public final class CarrySnapshotService {
     }
 
     public Entity restoreEntity(Location destination, UUID carryId, CarryPayload payload) {
-        Entity restored = Bukkit.getUnsafe().deserializeEntity(payload.data(), destination.getWorld(), false, true);
+        Entity restored = Bukkit.getUnsafe().deserializeEntity(payload.data(), destination.getWorld(), true, true);
         restored.getPersistentDataContainer().set(
                 placedEntityKey,
                 PersistentDataType.STRING,
