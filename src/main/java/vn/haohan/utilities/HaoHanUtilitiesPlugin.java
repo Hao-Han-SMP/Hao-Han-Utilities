@@ -112,9 +112,43 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener, menuService);
-        PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
-        command.setExecutor(commandHandler);
-        command.setTabCompleter(commandHandler);
+
+        org.bukkit.command.defaults.BukkitCommand mainCmd = new org.bukkit.command.defaults.BukkitCommand(
+                "haohanutilities",
+                "Lệnh quản trị Hảo Hán Utilities",
+                "/haohanutilities <info|toggle|bind|reload|status|inspect|recover|menu>",
+                java.util.List.of("haohan", "hhu", "carryblocks", "carryblock", "cb", "menu")
+        ) {
+            @Override
+            public boolean execute(org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
+                return commandHandler.onCommand(sender, this, commandLabel, args);
+            }
+
+            @Override
+            public java.util.List<String> tabComplete(org.bukkit.command.CommandSender sender, String alias, String[] args) {
+                return commandHandler.onTabComplete(sender, this, alias, args);
+            }
+        };
+
+        org.bukkit.command.defaults.BukkitCommand concreteCmd = new org.bukkit.command.defaults.BukkitCommand(
+                "concretemixer",
+                "Hiển thị thông tin Concrete Mixer hoặc reload cấu hình",
+                "/concretemixer <version|reload>",
+                java.util.List.of()
+        ) {
+            @Override
+            public boolean execute(org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
+                return commandHandler.onCommand(sender, this, commandLabel, args);
+            }
+
+            @Override
+            public java.util.List<String> tabComplete(org.bukkit.command.CommandSender sender, String alias, String[] args) {
+                return commandHandler.onTabComplete(sender, this, alias, args);
+            }
+        };
+
+        getServer().getCommandMap().register("haohanutilities", mainCmd);
+        getServer().getCommandMap().register("haohanutilities", concreteCmd);
 
         renderer.start();
         int removedPhantoms = phantomSuppression.cleanupLoadedWorlds();
