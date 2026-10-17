@@ -14,6 +14,7 @@ import vn.haohan.utilities.carry.CarryService;
 import vn.haohan.utilities.carry.CarrySnapshotService;
 import vn.haohan.utilities.carry.CarryStatus;
 import vn.haohan.utilities.database.CarryRepository;
+import vn.haohan.utilities.integration.ItemCoreCarryIntegration;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
 
 import java.sql.SQLException;
@@ -26,19 +27,22 @@ public final class RecoveryService {
     private final CarryService carryService;
     private final CarrySnapshotService snapshots;
     private final SoulAnchorIntegration soulAnchors;
+    private final ItemCoreCarryIntegration itemCoreCarry;
 
     public RecoveryService(
             JavaPlugin plugin,
             CarryRepository repository,
             CarryService carryService,
             CarrySnapshotService snapshots,
-            SoulAnchorIntegration soulAnchors
+            SoulAnchorIntegration soulAnchors,
+            ItemCoreCarryIntegration itemCoreCarry
     ) {
         this.plugin = plugin;
         this.repository = repository;
         this.carryService = carryService;
         this.snapshots = snapshots;
         this.soulAnchors = soulAnchors;
+        this.itemCoreCarry = itemCoreCarry;
     }
 
     public void recoverOnStartup() {
@@ -117,6 +121,16 @@ public final class RecoveryService {
             }
             return;
         }
+        if (record.payload().kind() == CarryKind.CUSTOM_BLOCK) {
+            if (itemCoreCarry != null && itemCoreCarry.isCustomBlock(original)) {
+                repository.markRestored(record.carryId());
+            } else if (original.getType() == Material.AIR) {
+                repository.markCarried(record.carryId());
+            } else {
+                repository.markFailed(record.carryId(), "original position occupied during Custom Block recovery");
+            }
+            return;
+        }
         if (snapshots.matchesSourceBlock(original, record.payload())) {
             repository.markRestored(record.carryId());
         } else if (original.getType() == Material.AIR) {
@@ -144,6 +158,16 @@ public final class RecoveryService {
 
         Block destination = loadedBlock(record.placementPosition());
         if (destination == null) {
+            return;
+        }
+        if (record.payload().kind() == CarryKind.CUSTOM_BLOCK) {
+            if (itemCoreCarry != null && itemCoreCarry.isCustomBlock(destination)) {
+                repository.markPlaced(record.carryId());
+            } else if (destination.getType() == Material.AIR) {
+                repository.markCarried(record.carryId());
+            } else {
+                repository.markFailed(record.carryId(), "placement destination occupied during Custom Block recovery");
+            }
             return;
         }
         if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {

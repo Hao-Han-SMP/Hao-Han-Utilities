@@ -8,6 +8,7 @@ version = "3.1.0"
 val pluginVersion = version.toString()
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven {
         name = "papermc"
@@ -18,12 +19,14 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("vn.haohan:HaoHanItemCore:1.0.0")
     compileOnly("com.github.Gecolay.GSit:core:3.5.1")
     implementation("org.xerial:sqlite-jdbc:3.53.2.0")
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    testImplementation("vn.haohan:HaoHanItemCore:1.0.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

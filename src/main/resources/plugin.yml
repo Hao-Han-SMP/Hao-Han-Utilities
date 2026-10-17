@@ -5,6 +5,9 @@ api-version: '1.21.11'
 author: Hao Han SMP
 description: Carry and utility features with crash recovery.
 
+depend:
+  - HaoHanItemCore
+
 softdepend:
   - SoulAnchor
   - WorldGuard

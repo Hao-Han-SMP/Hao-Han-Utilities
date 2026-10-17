@@ -13,6 +13,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.WaterMob;
 import org.bukkit.plugin.java.JavaPlugin;
+import vn.haohan.utilities.integration.ItemCoreCarryIntegration;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
 
 import java.util.EnumSet;
@@ -24,6 +25,7 @@ public final class CarryValidator {
     private final JavaPlugin plugin;
     private final CarrySessionManager sessions;
     private final SoulAnchorIntegration soulAnchors;
+    private final ItemCoreCarryIntegration itemCoreCarry;
     private Set<Material> allowedBlocks = EnumSet.noneOf(Material.class);
     private Set<String> configuredWorlds = Set.of();
     private String worldMode;
@@ -31,15 +33,20 @@ public final class CarryValidator {
     public CarryValidator(
             JavaPlugin plugin,
             CarrySessionManager sessions,
-            SoulAnchorIntegration soulAnchors
+            SoulAnchorIntegration soulAnchors,
+            ItemCoreCarryIntegration itemCoreCarry
     ) {
         this.plugin = plugin;
         this.sessions = sessions;
         this.soulAnchors = soulAnchors;
+        this.itemCoreCarry = itemCoreCarry;
         reload();
     }
 
     public void reload() {
+        if (itemCoreCarry != null) {
+            itemCoreCarry.reload();
+        }
         EnumSet<Material> parsed = EnumSet.noneOf(Material.class);
         for (String name : plugin.getConfig().getStringList("blocks.allowed")) {
             Material material = Material.matchMaterial(name);
@@ -61,6 +68,13 @@ public final class CarryValidator {
         }
         if (soulAnchors.isAnchor(block)) {
             return soulAnchors.validatePickup(player, block);
+        }
+        if (itemCoreCarry != null && itemCoreCarry.isCustomBlock(block)) {
+            String customBlockId = itemCoreCarry.getCustomBlockId(block);
+            if (!itemCoreCarry.isCarryable(customBlockId)) {
+                return "unsupported-block";
+            }
+            return null;
         }
         if (!isSupportedBlock(block)) {
             return "unsupported-block";

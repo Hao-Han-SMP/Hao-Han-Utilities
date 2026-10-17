@@ -22,13 +22,13 @@ import vn.haohan.utilities.food.GoldenAppleListener;
 import vn.haohan.utilities.heart.CrystalHeartItem;
 import vn.haohan.utilities.heart.CrystalHeartListener;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
+import vn.haohan.utilities.integration.ItemCoreCarryIntegration;
 import vn.haohan.utilities.integration.GSitIntegration;
 import vn.haohan.utilities.listener.CarryRestrictionListener;
 import vn.haohan.utilities.listener.PickupPlaceListener;
 import vn.haohan.utilities.listener.PlayerLifecycleListener;
 import vn.haohan.utilities.phantom.PhantomSuppressionListener;
 import vn.haohan.utilities.protection.ProtectionService;
-import vn.haohan.utilities.recipe.RottenFleshSmokingRecipe;
 import vn.haohan.utilities.recovery.RecoveryService;
 import vn.haohan.utilities.render.CarryRenderer;
 import vn.haohan.utilities.render.ItemDisplayRenderer;
@@ -42,7 +42,6 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
     private CarryService carryService;
     private CarryRenderer renderer;
     private CrystalHeartItem heartItem;
-    private RottenFleshSmokingRecipe rottenFleshSmokingRecipe;
     private DogFetchService dogFetchService;
 
     @Override
@@ -64,7 +63,8 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         MessageService messages = new MessageService(this);
         SoulAnchorIntegration soulAnchors = new SoulAnchorIntegration(this);
         soulAnchors.initialize();
-        CarryValidator validator = new CarryValidator(this, sessions, soulAnchors);
+        ItemCoreCarryIntegration itemCoreCarry = new ItemCoreCarryIntegration(this);
+        CarryValidator validator = new CarryValidator(this, sessions, soulAnchors, itemCoreCarry);
         CarrySnapshotService snapshots = new CarrySnapshotService(this);
         ProtectionService protection = new ProtectionService(this);
         renderer = new ItemDisplayRenderer(this, sessions, snapshots);
@@ -77,17 +77,16 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
                 preferences,
                 snapshots,
                 soulAnchors,
+                itemCoreCarry,
                 protection,
                 renderer,
                 messages
         );
-        RecoveryService recovery = new RecoveryService(this, repository, carryService, snapshots, soulAnchors);
+        RecoveryService recovery = new RecoveryService(this, repository, carryService, snapshots, soulAnchors, itemCoreCarry);
         PhantomSuppressionListener phantomSuppression = new PhantomSuppressionListener(this);
 
         heartItem = new CrystalHeartItem(this);
         heartItem.registerRecipe();
-        rottenFleshSmokingRecipe = new RottenFleshSmokingRecipe(this);
-        rottenFleshSmokingRecipe.register();
         CrystalHeartListener heartListener = new CrystalHeartListener(this, heartItem);
 
         dogFetchService = new DogFetchService(this);
@@ -124,7 +123,6 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         if (carryService != null) carryService.shutdown();
         if (renderer != null) renderer.stop();
         if (heartItem != null) heartItem.unregisterRecipe();
-        if (rottenFleshSmokingRecipe != null) rottenFleshSmokingRecipe.unregister();
         if (dogFetchService != null) dogFetchService.shutdown();
     }
 }

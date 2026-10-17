@@ -12,10 +12,12 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
 import vn.haohan.utilities.config.MessageService;
 import vn.haohan.utilities.database.CarryRepository;
+import vn.haohan.utilities.integration.ItemCoreCarryIntegration;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
 import vn.haohan.utilities.protection.ProtectionService;
 import vn.haohan.utilities.render.CarryRenderer;
@@ -37,6 +39,7 @@ public final class CarryService {
     private final CarryPreferences preferences;
     private final CarrySnapshotService snapshots;
     private final SoulAnchorIntegration soulAnchors;
+    private final ItemCoreCarryIntegration itemCoreCarry;
     private final ProtectionService protection;
     private final CarryRenderer renderer;
     private final MessageService messages;
@@ -50,6 +53,7 @@ public final class CarryService {
             CarryPreferences preferences,
             CarrySnapshotService snapshots,
             SoulAnchorIntegration soulAnchors,
+            ItemCoreCarryIntegration itemCoreCarry,
             ProtectionService protection,
             CarryRenderer renderer,
             MessageService messages
@@ -61,6 +65,7 @@ public final class CarryService {
         this.preferences = preferences;
         this.snapshots = snapshots;
         this.soulAnchors = soulAnchors;
+        this.itemCoreCarry = itemCoreCarry;
         this.protection = protection;
         this.renderer = renderer;
         this.messages = messages;
@@ -126,6 +131,7 @@ public final class CarryService {
         }
 
         boolean soulAnchor = soulAnchors.isAnchor(block);
+        boolean customBlock = itemCoreCarry != null && itemCoreCarry.isCustomBlock(block);
         UUID carryId = UUID.randomUUID();
         boolean canPickup;
         try {
@@ -147,7 +153,15 @@ public final class CarryService {
 
         CarryPayload payload;
         try {
-            payload = soulAnchor ? soulAnchors.capture(block) : snapshots.captureBlock(block);
+            if (soulAnchor) {
+                payload = soulAnchors.capture(block);
+            } else if (customBlock) {
+                String customId = itemCoreCarry.getCustomBlockId(block);
+                ItemStack visual = itemCoreCarry.resolveVisualItem(customId);
+                payload = snapshots.captureCustomBlock(customId, visual);
+            } else {
+                payload = snapshots.captureBlock(block);
+            }
         } catch (RuntimeException exception) {
             logFailure("Cannot snapshot block", carryId, exception);
             messages.send(player, "snapshot-error");
@@ -162,8 +176,11 @@ public final class CarryService {
         try {
             if (payload.kind() == CarryKind.SOUL_ANCHOR) {
                 soulAnchors.removeForCarry(block, payload);
+            } else if (payload.kind() == CarryKind.CUSTOM_BLOCK) {
+                itemCoreCarry.removeCustomBlock(block.getLocation());
+            } else {
+                block.setType(Material.AIR, true);
             }
-            block.setType(Material.AIR, true);
             activateNewSession(record, player);
             markCarriedBestEffort(record);
             messages.send(player, "pickup-success", Map.of("block", displayType(payload.typeKey())));
@@ -319,6 +336,10 @@ public final class CarryService {
                 snapshots.restoreBlock(player, destination, session.payload(), clickedFace);
             } else if (session.payload().kind() == CarryKind.SOUL_ANCHOR) {
                 soulAnchors.restore(destination, session.payload());
+            } else if (session.payload().kind() == CarryKind.CUSTOM_BLOCK) {
+                if (itemCoreCarry != null) {
+                    itemCoreCarry.placeCustomBlock(destination.getLocation(), session.payload().typeKey());
+                }
             } else {
                 Location location = destination.getLocation().add(0.5, 0.0, 0.5);
                 location.setYaw(player.getYaw());
@@ -416,6 +437,10 @@ public final class CarryService {
                 snapshots.restoreBlock(admin, destination, record.payload());
             } else if (record.payload().kind() == CarryKind.SOUL_ANCHOR) {
                 soulAnchors.restore(destination, record.payload());
+            } else if (record.payload().kind() == CarryKind.CUSTOM_BLOCK) {
+                if (itemCoreCarry != null) {
+                    itemCoreCarry.placeCustomBlock(destination.getLocation(), record.payload().typeKey());
+                }
             } else {
                 restoredEntity = snapshots.restoreEntity(
                         destination.getLocation().add(0.5, 0.0, 0.5),
@@ -591,6 +616,10 @@ public final class CarryService {
                     throw new IllegalStateException("Original Soul Anchor position is occupied");
                 }
                 soulAnchors.restore(original, record.payload());
+            } else if (record.payload().kind() == CarryKind.CUSTOM_BLOCK) {
+                if (itemCoreCarry != null) {
+                    itemCoreCarry.placeCustomBlock(original.getLocation(), record.payload().typeKey());
+                }
             } else {
                 Entity restored = snapshots.restoreEntity(
                         original.getLocation().add(0.5, 0.0, 0.5),
@@ -621,6 +650,12 @@ public final class CarryService {
             }
             if (soulAnchors.matchesBackingBlock(destination, payload)) {
                 destination.setType(Material.AIR, true);
+            }
+            return;
+        }
+        if (payload.kind() == CarryKind.CUSTOM_BLOCK) {
+            if (itemCoreCarry != null && itemCoreCarry.isCustomBlock(destination)) {
+                itemCoreCarry.removeCustomBlock(destination.getLocation());
             }
             return;
         }

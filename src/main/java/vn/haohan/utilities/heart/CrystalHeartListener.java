@@ -81,9 +81,30 @@ public class CrystalHeartListener implements Listener {
             return;
         }
 
-        event.setCancelled(true);
         Player player = event.getPlayer();
+        AttributeInstance maxHealthAttr = getMaxHealthAttribute(player);
+        if (maxHealthAttr == null) return;
 
+        double currentMax = maxHealthAttr.getBaseValue();
+        double maxCap = getMaxHealthCap();
+
+        if (currentMax >= maxCap) {
+            event.setCancelled(true);
+            player.sendMessage(ChatColor.RED + "You have reached the maximum health limit (" + (int)(maxCap / 2) + " Hearts)!");
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerConsume(org.bukkit.event.player.PlayerItemConsumeEvent event) {
+        if (!isEnabled()) return;
+
+        ItemStack item = event.getItem();
+        if (!heartItem.isCrystalHeart(item)) {
+            return;
+        }
+
+        Player player = event.getPlayer();
         AttributeInstance maxHealthAttr = getMaxHealthAttribute(player);
         if (maxHealthAttr == null) return;
 
@@ -92,6 +113,7 @@ public class CrystalHeartListener implements Listener {
         double hpPerHeart = getHpPerHeart();
 
         if (currentMax >= maxCap) {
+            event.setCancelled(true);
             player.sendMessage(ChatColor.RED + "You have reached the maximum health limit (" + (int)(maxCap / 2) + " Hearts)!");
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1.0f, 1.0f);
             return;
@@ -99,10 +121,6 @@ public class CrystalHeartListener implements Listener {
 
         double newMax = Math.min(maxCap, currentMax + hpPerHeart);
         maxHealthAttr.setBaseValue(newMax);
-
-        if (player.getGameMode() != GameMode.CREATIVE) {
-            item.setAmount(item.getAmount() - 1);
-        }
 
         int regenSeconds = getRegenDurationSeconds();
         if (regenSeconds > 0) {

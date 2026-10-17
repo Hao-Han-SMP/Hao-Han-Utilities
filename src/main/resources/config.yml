@@ -35,6 +35,13 @@ entities:
 players:
   enabled: true
 
+custom-blocks:
+  # Mặc định cấm bê custom block nếu không nằm trong danh sách cho phép (an toàn cho máy móc/multiblock)
+  allow-by-default: false
+  allowed: []
+  denied:
+    - "metallurgy:*"
+
 animation:
   object-scale: 1.05
   forward-offset: 0.72
