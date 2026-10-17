@@ -19,8 +19,8 @@ softdepend:
 commands:
   haohanutilities:
     description: Lệnh quản trị Hảo Hán Utilities
-    usage: /haohanutilities <info|toggle|bind|reload|status|inspect|recover>
-    aliases: [hhu, carryblocks, carryblock, cb]
+    usage: /haohanutilities <info|toggle|bind|reload|status|inspect|recover|menu>
+    aliases: [haohan, hhu, carryblocks, carryblock, cb, menu]
   concretemixer:
     description: Hiển thị thông tin Concrete Mixer hoặc reload cấu hình
     usage: /concretemixer <version|reload>

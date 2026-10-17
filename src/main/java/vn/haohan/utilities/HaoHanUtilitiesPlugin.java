@@ -106,8 +106,12 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(heartListener, this);
         plugins.registerEvents(new DogFetchListener(this, dogFetchService), this);
 
+        vn.haohan.utilities.menu.ServerLinksManager linksManager = new vn.haohan.utilities.menu.ServerLinksManager(getServer());
+        vn.haohan.utilities.menu.ServerMenuService menuService = new vn.haohan.utilities.menu.ServerMenuService(this, linksManager);
+        plugins.registerEvents(new vn.haohan.utilities.menu.ServerMenuListener(linksManager), this);
+
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
-                this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener);
+                this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener, menuService);
         PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
         command.setExecutor(commandHandler);
         command.setTabCompleter(commandHandler);
