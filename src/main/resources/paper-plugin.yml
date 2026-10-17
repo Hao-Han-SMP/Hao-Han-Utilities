@@ -1,0 +1,17 @@
+name: HaoHanUtilities
+version: '${version}'
+main: vn.haohan.utilities.HaoHanUtilitiesPlugin
+bootstrapper: vn.haohan.utilities.bootstrap.HaoHanUtilitiesBootstrap
+api-version: '1.21'
+description: HaoHan Utilities with Pause Screen Additions Dialogs and Carry mechanics
+dependencies:
+  server:
+    HaoHanItemCore:
+      load: BEFORE
+      required: true
+    GSit:
+      load: BEFORE
+      required: false
+    SoulAnchor:
+      load: BEFORE
+      required: false

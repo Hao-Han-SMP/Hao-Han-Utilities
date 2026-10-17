@@ -43,7 +43,7 @@ tasks {
 
     processResources {
         filteringCharset = "UTF-8"
-        filesMatching("plugin.yml") {
+        filesMatching(listOf("plugin.yml", "paper-plugin.yml")) {
             expand("version" to pluginVersion)
         }
     }
