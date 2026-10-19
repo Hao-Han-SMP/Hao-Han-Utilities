@@ -22,13 +22,13 @@ import vn.haohan.utilities.food.GoldenAppleListener;
 import vn.haohan.utilities.heart.CrystalHeartItem;
 import vn.haohan.utilities.heart.CrystalHeartListener;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
+import vn.haohan.utilities.integration.ItemCoreCarryIntegration;
 import vn.haohan.utilities.integration.GSitIntegration;
 import vn.haohan.utilities.listener.CarryRestrictionListener;
 import vn.haohan.utilities.listener.PickupPlaceListener;
 import vn.haohan.utilities.listener.PlayerLifecycleListener;
 import vn.haohan.utilities.phantom.PhantomSuppressionListener;
 import vn.haohan.utilities.protection.ProtectionService;
-import vn.haohan.utilities.recipe.RottenFleshSmokingRecipe;
 import vn.haohan.utilities.recovery.RecoveryService;
 import vn.haohan.utilities.render.CarryRenderer;
 import vn.haohan.utilities.render.ItemDisplayRenderer;
@@ -42,7 +42,6 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
     private CarryService carryService;
     private CarryRenderer renderer;
     private CrystalHeartItem heartItem;
-    private RottenFleshSmokingRecipe rottenFleshSmokingRecipe;
     private DogFetchService dogFetchService;
 
     @Override
@@ -64,7 +63,8 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         MessageService messages = new MessageService(this);
         SoulAnchorIntegration soulAnchors = new SoulAnchorIntegration(this);
         soulAnchors.initialize();
-        CarryValidator validator = new CarryValidator(this, sessions, soulAnchors);
+        ItemCoreCarryIntegration itemCoreCarry = new ItemCoreCarryIntegration(this);
+        CarryValidator validator = new CarryValidator(this, sessions, soulAnchors, itemCoreCarry);
         CarrySnapshotService snapshots = new CarrySnapshotService(this);
         ProtectionService protection = new ProtectionService(this);
         renderer = new ItemDisplayRenderer(this, sessions, snapshots);
@@ -77,17 +77,16 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
                 preferences,
                 snapshots,
                 soulAnchors,
+                itemCoreCarry,
                 protection,
                 renderer,
                 messages
         );
-        RecoveryService recovery = new RecoveryService(this, repository, carryService, snapshots, soulAnchors);
+        RecoveryService recovery = new RecoveryService(this, repository, carryService, snapshots, soulAnchors, itemCoreCarry);
         PhantomSuppressionListener phantomSuppression = new PhantomSuppressionListener(this);
 
         heartItem = new CrystalHeartItem(this);
         heartItem.registerRecipe();
-        rottenFleshSmokingRecipe = new RottenFleshSmokingRecipe(this);
-        rottenFleshSmokingRecipe.register();
         CrystalHeartListener heartListener = new CrystalHeartListener(this, heartItem);
 
         dogFetchService = new DogFetchService(this);
@@ -107,11 +106,49 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(heartListener, this);
         plugins.registerEvents(new DogFetchListener(this, dogFetchService), this);
 
+        vn.haohan.utilities.menu.ServerLinksManager linksManager = new vn.haohan.utilities.menu.ServerLinksManager(getServer());
+        vn.haohan.utilities.menu.ServerMenuService menuService = new vn.haohan.utilities.menu.ServerMenuService(this, linksManager);
+        plugins.registerEvents(new vn.haohan.utilities.menu.ServerMenuListener(linksManager), this);
+
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
-                this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener);
-        PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
-        command.setExecutor(commandHandler);
-        command.setTabCompleter(commandHandler);
+                this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener, menuService);
+
+        org.bukkit.command.defaults.BukkitCommand mainCmd = new org.bukkit.command.defaults.BukkitCommand(
+                "haohanutilities",
+                "Lệnh quản trị Hảo Hán Utilities",
+                "/haohanutilities <info|toggle|bind|reload|status|inspect|recover|menu>",
+                java.util.List.of("haohan", "hhu", "carryblocks", "carryblock", "cb", "menu")
+        ) {
+            @Override
+            public boolean execute(org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
+                return commandHandler.onCommand(sender, this, commandLabel, args);
+            }
+
+            @Override
+            public java.util.List<String> tabComplete(org.bukkit.command.CommandSender sender, String alias, String[] args) {
+                return commandHandler.onTabComplete(sender, this, alias, args);
+            }
+        };
+
+        org.bukkit.command.defaults.BukkitCommand concreteCmd = new org.bukkit.command.defaults.BukkitCommand(
+                "concretemixer",
+                "Hiển thị thông tin Concrete Mixer hoặc reload cấu hình",
+                "/concretemixer <version|reload>",
+                java.util.List.of()
+        ) {
+            @Override
+            public boolean execute(org.bukkit.command.CommandSender sender, String commandLabel, String[] args) {
+                return commandHandler.onCommand(sender, this, commandLabel, args);
+            }
+
+            @Override
+            public java.util.List<String> tabComplete(org.bukkit.command.CommandSender sender, String alias, String[] args) {
+                return commandHandler.onTabComplete(sender, this, alias, args);
+            }
+        };
+
+        getServer().getCommandMap().register("haohanutilities", mainCmd);
+        getServer().getCommandMap().register("haohanutilities", concreteCmd);
 
         renderer.start();
         int removedPhantoms = phantomSuppression.cleanupLoadedWorlds();
@@ -124,7 +161,6 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         if (carryService != null) carryService.shutdown();
         if (renderer != null) renderer.stop();
         if (heartItem != null) heartItem.unregisterRecipe();
-        if (rottenFleshSmokingRecipe != null) rottenFleshSmokingRecipe.unregister();
         if (dogFetchService != null) dogFetchService.shutdown();
     }
 }

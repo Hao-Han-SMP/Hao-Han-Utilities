@@ -36,11 +36,13 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     private final PhantomSuppressionListener phantomSuppression;
     private final CrystalHeartItem heartItem;
     private final CrystalHeartListener heartListener;
+    private final vn.haohan.utilities.menu.ServerMenuService menuService;
 
     public HaoHanUtilitiesCommand(JavaPlugin plugin, CarryService carryService, CarryValidator validator,
                                   CarryPreferences preferences, MessageService messages,
                                   PhantomSuppressionListener phantomSuppression,
-                                  CrystalHeartItem heartItem, CrystalHeartListener heartListener) {
+                                  CrystalHeartItem heartItem, CrystalHeartListener heartListener,
+                                  vn.haohan.utilities.menu.ServerMenuService menuService) {
         this.plugin = plugin;
         this.carryService = carryService;
         this.validator = validator;
@@ -49,6 +51,7 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         this.phantomSuppression = phantomSuppression;
         this.heartItem = heartItem;
         this.heartListener = heartListener;
+        this.menuService = menuService;
     }
 
     @Override
@@ -56,9 +59,21 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         if (command.getName().equalsIgnoreCase("concretemixer")) {
             return concreteMixer(sender, args);
         }
+        if (command.getName().equalsIgnoreCase("menu") || (args.length > 0 && args[0].equalsIgnoreCase("menu"))) {
+            if (sender instanceof Player player) {
+                if (menuService != null) {
+                    menuService.openMainMenu(player);
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Hệ thống Menu chưa được kích hoạt.");
+                }
+            } else {
+                sender.sendMessage("Lệnh này chỉ dành cho người chơi.");
+            }
+            return true;
+        }
         if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
             sender.sendMessage("Hảo Hán Utilities v" + plugin.getPluginMeta().getVersion()
-                    + " — Carry Blocks + Animals + Phantom Suppression + Crystal Heart");
+                    + " — Carry Blocks + Animals + Phantom Suppression + Crystal Heart + Dialog Menu");
             return true;
         }
         if (args[0].equalsIgnoreCase("toggle")) {
@@ -328,8 +343,8 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> commands = sender.hasPermission("haohanutilities.admin")
-                    ? List.of("info", "toggle", "bind", "reload", "status", "inspect", "recover", "heart")
-                    : List.of("info", "toggle", "bind");
+                    ? List.of("info", "menu", "toggle", "bind", "reload", "status", "inspect", "recover", "heart")
+                    : List.of("info", "menu", "toggle", "bind");
             return filter(commands, args[0]);
         }
         if (args[0].equalsIgnoreCase("toggle") && args.length == 2) {

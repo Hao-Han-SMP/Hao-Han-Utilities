@@ -53,6 +53,19 @@ public final class CarrySnapshotService {
         );
     }
 
+    public CarryPayload captureCustomBlock(String customBlockId, ItemStack visualItem) {
+        ItemStack visual = visualItem != null ? visualItem : new ItemStack(Material.STONE);
+        byte[] visualBytes = visual.serializeAsBytes();
+        return new CarryPayload(
+                CarryKind.CUSTOM_BLOCK,
+                customBlockId,
+                null,
+                visualBytes,
+                visualBytes,
+                null
+        );
+    }
+
     public CarryPayload captureEntity(Entity entity) {
         ItemStack visual = entity.getPickItemStack();
         if (visual == null || visual.getType().isAir()) {
