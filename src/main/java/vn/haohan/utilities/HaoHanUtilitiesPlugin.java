@@ -3,40 +3,42 @@ package vn.haohan.utilities;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import vn.haohan.utilities.carry.CarryPreferences;
-import vn.haohan.utilities.carry.CarryService;
-import vn.haohan.utilities.carry.CarrySessionManager;
-import vn.haohan.utilities.carry.CarrySnapshotService;
-import vn.haohan.utilities.carry.CarryValidator;
-import vn.haohan.utilities.command.HaoHanUtilitiesCommand;
-import vn.haohan.utilities.config.MessageService;
-import vn.haohan.utilities.concrete.ConcreteMixerListener;
-import vn.haohan.utilities.crop.CropHarvestListener;
-import vn.haohan.utilities.database.CarryRepository;
-import vn.haohan.utilities.database.DatabaseManager;
-import vn.haohan.utilities.database.SQLiteCarryRepository;
-import vn.haohan.utilities.enderchest.EnderChestListener;
-import vn.haohan.utilities.fetch.DogFetchListener;
-import vn.haohan.utilities.fetch.DogFetchService;
-import vn.haohan.utilities.food.GoldenAppleListener;
-import vn.haohan.utilities.heart.CrystalHeartItem;
-import vn.haohan.utilities.heart.CrystalHeartListener;
+import vn.haohan.utilities.feature.carry.CarryPreferences;
+import vn.haohan.utilities.feature.carry.CarryService;
+import vn.haohan.utilities.feature.carry.CarrySessionManager;
+import vn.haohan.utilities.feature.carry.CarrySnapshotService;
+import vn.haohan.utilities.feature.carry.CarryValidator;
+import vn.haohan.utilities.core.HaoHanUtilitiesCommand;
+import vn.haohan.utilities.core.MessageService;
+import vn.haohan.utilities.feature.tweaks.ConcreteMixerListener;
+import vn.haohan.utilities.feature.tweaks.CropHarvestListener;
+import vn.haohan.utilities.feature.carry.storage.CarryRepository;
+import vn.haohan.utilities.feature.carry.storage.DatabaseManager;
+import vn.haohan.utilities.feature.carry.storage.SQLiteCarryRepository;
+import vn.haohan.utilities.feature.tweaks.EnderChestListener;
+import vn.haohan.utilities.feature.dogfetch.DogFetchListener;
+import vn.haohan.utilities.feature.dogfetch.DogFetchService;
+import vn.haohan.utilities.feature.tweaks.GoldenAppleListener;
+import vn.haohan.utilities.feature.crystalheart.CrystalHeartItem;
+import vn.haohan.utilities.feature.crystalheart.CrystalHeartListener;
 import vn.haohan.utilities.integration.SoulAnchorIntegration;
 import vn.haohan.utilities.integration.GSitIntegration;
-import vn.haohan.utilities.listener.CarryRestrictionListener;
-import vn.haohan.utilities.listener.PickupPlaceListener;
-import vn.haohan.utilities.listener.PlayerLifecycleListener;
-import vn.haohan.utilities.phantom.PhantomSuppressionListener;
-import vn.haohan.utilities.protection.ProtectionService;
-import vn.haohan.utilities.recipe.RottenFleshSmokingRecipe;
-import vn.haohan.utilities.recovery.RecoveryService;
-import vn.haohan.utilities.render.CarryRenderer;
-import vn.haohan.utilities.render.ItemDisplayRenderer;
-import vn.haohan.utilities.dummy.DamageIndicatorService;
-import vn.haohan.utilities.dummy.DummyListener;
-import vn.haohan.utilities.dummy.DummyManager;
-import vn.haohan.utilities.dummy.StrawDummyItem;
-import vn.haohan.utilities.torch.TorchFireListener;
+import vn.haohan.utilities.integration.ItemCoreIntegration;
+import vn.haohan.utilities.integration.ModelEngineIntegration;
+import vn.haohan.utilities.feature.carry.listener.CarryRestrictionListener;
+import vn.haohan.utilities.feature.carry.listener.PickupPlaceListener;
+import vn.haohan.utilities.feature.carry.listener.PlayerLifecycleListener;
+import vn.haohan.utilities.feature.tweaks.PhantomSuppressionListener;
+import vn.haohan.utilities.core.ProtectionService;
+import vn.haohan.utilities.feature.tweaks.RottenFleshSmokingRecipe;
+import vn.haohan.utilities.feature.carry.recovery.RecoveryService;
+import vn.haohan.utilities.feature.carry.render.CarryRenderer;
+import vn.haohan.utilities.feature.carry.render.ItemDisplayRenderer;
+import vn.haohan.utilities.feature.dummy.DamageIndicatorService;
+import vn.haohan.utilities.feature.dummy.DummyListener;
+import vn.haohan.utilities.feature.dummy.DummyManager;
+import vn.haohan.utilities.feature.dummy.StrawDummyItem;
+import vn.haohan.utilities.feature.tweaks.TorchFireListener;
 
 import java.sql.SQLException;
 import java.util.Objects;
@@ -91,16 +93,16 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         PhantomSuppressionListener phantomSuppression = new PhantomSuppressionListener(this);
 
         heartItem = new CrystalHeartItem(this);
-        heartItem.registerRecipe();
+        heartItem.unregisterRecipe();
         rottenFleshSmokingRecipe = new RottenFleshSmokingRecipe(this);
         rottenFleshSmokingRecipe.register();
         CrystalHeartListener heartListener = new CrystalHeartListener(this, heartItem);
 
         strawDummyItem = new StrawDummyItem(this);
         strawDummyItem.registerRecipe();
-        new vn.haohan.utilities.integration.ItemCoreIntegration(this).registerStrawDummy();
+        new ItemCoreIntegration(this).registerStrawDummy();
         DamageIndicatorService damageIndicators = new DamageIndicatorService(this);
-        vn.haohan.utilities.integration.ModelEngineIntegration modelEngine = new vn.haohan.utilities.integration.ModelEngineIntegration(this);
+        ModelEngineIntegration modelEngine = new ModelEngineIntegration(this);
         dummyManager = new DummyManager(this, strawDummyItem, damageIndicators, modelEngine);
         DummyListener dummyListener = new DummyListener(dummyManager, protection, messages);
 
@@ -125,9 +127,11 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression,
                 heartItem, heartListener, strawDummyItem, dummyManager);
-        PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
-        command.setExecutor(commandHandler);
-        command.setTabCompleter(commandHandler);
+        for (String name : new String[]{"haohanutilities", "concretemixer"}) {
+            PluginCommand command = Objects.requireNonNull(getCommand(name), "Command missing from plugin.yml: " + name);
+            command.setExecutor(commandHandler);
+            command.setTabCompleter(commandHandler);
+        }
 
         renderer.start();
         int removedPhantoms = phantomSuppression.cleanupLoadedWorlds();

@@ -9,8 +9,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import vn.haohan.utilities.carry.CarryKind;
-import vn.haohan.utilities.carry.CarryPayload;
+import vn.haohan.utilities.feature.carry.CarryKind;
+import vn.haohan.utilities.feature.carry.CarryPayload;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
