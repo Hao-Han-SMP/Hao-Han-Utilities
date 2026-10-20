@@ -24,8 +24,11 @@ import org.joml.Vector3f;
 import vn.haohan.utilities.feature.dummy.StrawDummyItem.DummyArmorSlot;
 import vn.haohan.utilities.feature.dummy.StrawDummyItem.DummyArmorTier;
 
+import java.lang.reflect.Method;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -59,6 +62,11 @@ public final class DummyInstance {
     private float initialAngle;
     private int animTick;
     private int lastOutputPower = 0;
+    private boolean redstoneInputPowered = false;
+
+    private static Method getBlockEntityMethod = null;
+    private static Method setOutputSignalMethod = null;
+    private static boolean comparatorMethodsInitialized = false;
 
     public DummyInstance(
             Plugin plugin,
@@ -148,6 +156,7 @@ public final class DummyInstance {
         }
 
         saveArmorToPdc(armorDataKey);
+        updateArmorRedstoneReading();
     }
 
     /** Same item (attributes, enchants) but pointing at a non-existent equipment asset, so it renders nothing. */
@@ -257,6 +266,7 @@ public final class DummyInstance {
         }
 
         saveArmorToPdc(armorDataKey);
+        updateArmorRedstoneReading();
         return targetSlot;
     }
 
@@ -441,22 +451,41 @@ public final class DummyInstance {
         return lastOutputPower;
     }
 
+    public boolean isRedstoneInputPowered() {
+        return redstoneInputPowered;
+    }
+
+    public void handleRedstoneInput(boolean powered) {
+        if (powered) {
+            if (!redstoneInputPowered) {
+                this.redstoneInputPowered = true;
+                triggerHit(new Vector(0, 0, 0), 3.0);
+                Location loc = baseLocation;
+                loc.getWorld().playSound(loc, org.bukkit.Sound.BLOCK_WOOD_STEP, 0.8F, 1.2F);
+                loc.getWorld().spawnParticle(
+                        org.bukkit.Particle.DUST,
+                        loc.clone().add(0, 0.2, 0),
+                        8,
+                        0.2, 0.1, 0.2, 0.0,
+                        new org.bukkit.Particle.DustOptions(org.bukkit.Color.RED, 1.2F)
+                );
+            }
+        } else {
+            this.redstoneInputPowered = false;
+        }
+    }
+
     public void triggerRedstoneOutput(double damage) {
-        // Power proportional to damage: 1 dmg = level 1, 20+ dmg = max level 15
+        // Power proportional to damage: 1 dmg = level 1, 15+ dmg = max level 15
         int power = (int) Math.max(1, Math.min(15, Math.round(damage)));
         this.lastOutputPower = power;
 
         org.bukkit.block.Block baseBlock = baseLocation.getBlock();
-        org.bukkit.block.Block supportBlock = baseBlock.getRelative(0, -1, 0);
+        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
 
-        // Update TargetBlock if player placed dummy on top of a TARGET block
-        if (supportBlock.getType() == Material.TARGET && supportBlock.getBlockData() instanceof org.bukkit.block.data.AnaloguePowerable target) {
-            target.setPower(power);
-            supportBlock.setBlockData(target, true);
-        }
-
-        // Fire redstone events for adjacent comparators/wires
-        supportBlock.getState().update(true, true);
+        updateTargetBlock(supportBlock, power);
+        updateTargetBlock(baseBlock, power);
+        updateAdjacentRedstone(baseBlock, supportBlock, power);
 
         if (redstoneResetTask != null) {
             redstoneResetTask.cancel();
@@ -465,13 +494,84 @@ public final class DummyInstance {
         int pulseDuration = Math.max(4, plugin.getConfig().getInt("dummy.redstone-pulse-ticks", 10));
         redstoneResetTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
             this.lastOutputPower = 0;
-            if (supportBlock.getType() == Material.TARGET && supportBlock.getBlockData() instanceof org.bukkit.block.data.AnaloguePowerable target) {
-                target.setPower(0);
-                supportBlock.setBlockData(target, true);
-            }
-            supportBlock.getState().update(true, true);
+            updateTargetBlock(supportBlock, 0);
+            updateTargetBlock(baseBlock, 0);
+            updateAdjacentRedstone(baseBlock, supportBlock, 0);
             redstoneResetTask = null;
         }, pulseDuration);
+    }
+
+    public void updateArmorRedstoneReading() {
+        if (lastOutputPower > 0) return; // currently pulsing hit output
+        org.bukkit.block.Block baseBlock = baseLocation.getBlock();
+        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+        updateAdjacentRedstone(baseBlock, supportBlock, 0);
+    }
+
+    private void updateTargetBlock(org.bukkit.block.Block block, int power) {
+        if (block.getType() == Material.TARGET && block.getBlockData() instanceof org.bukkit.block.data.AnaloguePowerable target) {
+            target.setPower(power);
+            block.setBlockData(target, true);
+        }
+    }
+
+    private void updateAdjacentRedstone(org.bukkit.block.Block baseBlock, org.bukkit.block.Block supportBlock, int power) {
+        Set<org.bukkit.block.Block> neighbors = new HashSet<>();
+        // All 6 faces of supportBlock
+        for (org.bukkit.block.BlockFace face : org.bukkit.block.BlockFace.values()) {
+            if (face.isCartesian()) {
+                neighbors.add(supportBlock.getRelative(face));
+            }
+        }
+        // Horizontal faces of baseBlock
+        neighbors.add(baseBlock.getRelative(org.bukkit.block.BlockFace.NORTH));
+        neighbors.add(baseBlock.getRelative(org.bukkit.block.BlockFace.SOUTH));
+        neighbors.add(baseBlock.getRelative(org.bukkit.block.BlockFace.EAST));
+        neighbors.add(baseBlock.getRelative(org.bukkit.block.BlockFace.WEST));
+
+        int staticArmorReading = 0;
+        if (power <= 0 && hasAnyArmor()) {
+            int defense = getTotalArmorDefense();
+            staticArmorReading = Math.min(15, (int) Math.round((defense / 20.0) * 15.0));
+        }
+
+        for (org.bukkit.block.Block neighbor : neighbors) {
+            Material type = neighbor.getType();
+            if (type == Material.REDSTONE_WIRE && neighbor.getBlockData() instanceof org.bukkit.block.data.AnaloguePowerable wire) {
+                wire.setPower(power);
+                neighbor.setBlockData(wire, true);
+            } else if (type == Material.COMPARATOR && neighbor.getBlockData() instanceof org.bukkit.block.data.type.Comparator comp) {
+                org.bukkit.block.BlockFace facing = comp.getFacing();
+                org.bukkit.block.Block measured = neighbor.getRelative(facing.getOppositeFace());
+                if (measured.equals(supportBlock) || measured.equals(baseBlock)) {
+                    int effectivePower = Math.max(power, staticArmorReading);
+                    comp.setPowered(effectivePower > 0);
+                    neighbor.setBlockData(comp, true);
+                    setComparatorOutputSignal(neighbor, effectivePower);
+                }
+            }
+        }
+    }
+
+    private static void setComparatorOutputSignal(org.bukkit.block.Block comparatorBlock, int signal) {
+        try {
+            if (!comparatorMethodsInitialized) {
+                comparatorMethodsInitialized = true;
+                try {
+                    Class<?> craftBlockEntityStateClass = Class.forName("org.bukkit.craftbukkit.block.CraftBlockEntityState");
+                    getBlockEntityMethod = craftBlockEntityStateClass.getMethod("getBlockEntity");
+                    Class<?> comparatorEntityClass = Class.forName("net.minecraft.world.level.block.entity.ComparatorBlockEntity");
+                    setOutputSignalMethod = comparatorEntityClass.getMethod("setOutputSignal", int.class);
+                } catch (Throwable ignored) {}
+            }
+            if (getBlockEntityMethod != null && setOutputSignalMethod != null) {
+                org.bukkit.block.BlockState state = comparatorBlock.getState();
+                Object blockEntity = getBlockEntityMethod.invoke(state);
+                if (blockEntity != null) {
+                    setOutputSignalMethod.invoke(blockEntity, signal);
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     public void stopWobble() {
@@ -487,6 +587,12 @@ public final class DummyInstance {
             redstoneResetTask.cancel();
             redstoneResetTask = null;
         }
+        this.lastOutputPower = 0;
+        org.bukkit.block.Block baseBlock = baseLocation.getBlock();
+        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+        updateTargetBlock(supportBlock, 0);
+        updateTargetBlock(baseBlock, 0);
+        updateAdjacentRedstone(baseBlock, supportBlock, 0);
         if (modelEngine != null && interaction.isValid()) {
             modelEngine.destroyModel(interaction);
         }

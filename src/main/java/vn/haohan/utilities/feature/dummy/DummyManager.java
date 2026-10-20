@@ -36,6 +36,7 @@ public final class DummyManager {
 
     private final Map<UUID, DummyInstance> activeDummies = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> interactionToDummyId = new ConcurrentHashMap<>();
+    private final Map<Location, DummyInstance> dummiesByBlockLocation = new ConcurrentHashMap<>();
 
     public DummyManager(
             Plugin plugin,
@@ -164,15 +165,64 @@ public final class DummyManager {
         if (mannequin != null) {
             interactionToDummyId.put(mannequin.getUniqueId(), dummyId);
         }
+        registerDummyLocation(instance);
 
         return instance;
     }
 
+    public void registerDummyLocation(DummyInstance dummy) {
+        if (dummy == null) return;
+        org.bukkit.block.Block baseBlock = dummy.getBaseLocation().getBlock();
+        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+        dummiesByBlockLocation.put(baseBlock.getLocation(), dummy);
+        dummiesByBlockLocation.put(supportBlock.getLocation(), dummy);
+    }
+
+    public void unregisterDummyLocation(DummyInstance dummy) {
+        if (dummy == null) return;
+        org.bukkit.block.Block baseBlock = dummy.getBaseLocation().getBlock();
+        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+        dummiesByBlockLocation.remove(baseBlock.getLocation());
+        dummiesByBlockLocation.remove(supportBlock.getLocation());
+    }
+
+    public DummyInstance getDummyByBlock(org.bukkit.block.Block block) {
+        if (block == null) return null;
+        DummyInstance dummy = dummiesByBlockLocation.get(block.getLocation());
+        if (dummy != null && dummy.isValid()) {
+            return dummy;
+        }
+        return null;
+    }
+
+    public DummyInstance getDummyAdjacentTo(org.bukkit.block.Block block) {
+        if (block == null) return null;
+        org.bukkit.block.BlockFace[] faces = {
+                org.bukkit.block.BlockFace.NORTH,
+                org.bukkit.block.BlockFace.SOUTH,
+                org.bukkit.block.BlockFace.EAST,
+                org.bukkit.block.BlockFace.WEST,
+                org.bukkit.block.BlockFace.UP,
+                org.bukkit.block.BlockFace.DOWN
+        };
+        for (org.bukkit.block.BlockFace face : faces) {
+            DummyInstance dummy = dummiesByBlockLocation.get(block.getRelative(face).getLocation());
+            if (dummy != null && dummy.isValid()) {
+                return dummy;
+            }
+        }
+        return null;
+    }
+
     public DummyInstance getDummyAtBlock(org.bukkit.block.Block block) {
         if (block == null) return null;
-        for (DummyInstance dummy : activeDummies.values()) {
-            if (dummy.isValid() && dummy.getBaseLocation().getBlock().equals(block)) {
-                return dummy;
+        DummyInstance dummy = dummiesByBlockLocation.get(block.getLocation());
+        if (dummy != null && dummy.isValid()) {
+            return dummy;
+        }
+        for (DummyInstance d : activeDummies.values()) {
+            if (d.isValid() && d.getBaseLocation().getBlock().equals(block)) {
+                return d;
             }
         }
         return null;
@@ -328,6 +378,7 @@ public final class DummyManager {
             if (foundMannequin != null) {
                 interactionToDummyId.put(foundMannequin.getUniqueId(), dummyId);
             }
+            registerDummyLocation(instance);
             return instance;
         }
 
@@ -337,6 +388,7 @@ public final class DummyManager {
     public void removeDummy(DummyInstance dummy, boolean dropItem) {
         if (dummy == null) return;
 
+        unregisterDummyLocation(dummy);
         activeDummies.remove(dummy.getDummyId());
         interactionToDummyId.remove(dummy.getInteraction().getUniqueId());
         if (dummy.getArmorStand() != null) {
@@ -364,5 +416,6 @@ public final class DummyManager {
         }
         activeDummies.clear();
         interactionToDummyId.clear();
+        dummiesByBlockLocation.clear();
     }
 }

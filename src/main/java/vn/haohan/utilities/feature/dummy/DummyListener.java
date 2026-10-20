@@ -19,6 +19,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.block.BlockRedstoneEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
@@ -109,8 +111,6 @@ public final class DummyListener implements Listener {
                     0.25, 0.25, 0.25,
                     Material.HAY_BLOCK.createBlockData()
             );
-
-            messageService.send(player, "dummy-placed");
         }
     }
 
@@ -316,52 +316,41 @@ public final class DummyListener implements Listener {
     }
 
     /**
-     * Handles Redstone interaction with Dummy:
-     * 1. Redstone Comparator output: When placed facing away from the block underneath the dummy,
-     *    it reads out the power level of the hit (1-15) or defense level.
-     * 2. Redstone Power input: When redstone power is supplied to the dummy's base block,
-     *    the dummy triggers a wobble training reaction or clears active negative potion effects.
+     * Handles Redstone input into the Dummy:
+     * When any redstone signal (wire, lever, button, repeater, torch, observer, etc.) powers
+     * the dummy's base block or support block, the dummy triggers a training wobble.
      */
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onRedstoneUpdate(org.bukkit.event.block.BlockRedstoneEvent event) {
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBlockPhysics(BlockPhysicsEvent event) {
         Block block = event.getBlock();
+        DummyInstance dummy = dummyManager.getDummyByBlock(block);
+        if (dummy == null) return;
 
-        // 1. Comparator reading from the dummy's base/support block
-        if (block.getType() == Material.COMPARATOR && block.getBlockData() instanceof org.bukkit.block.data.type.Comparator comp) {
-            org.bukkit.block.BlockFace facing = comp.getFacing();
-            Block measuredBlock = block.getRelative(facing.getOppositeFace());
-            DummyInstance dummy = dummyManager.getDummyAtBlock(measuredBlock);
-            if (dummy == null) {
-                dummy = dummyManager.getDummyAbove(measuredBlock);
-            }
+        Block baseBlock = dummy.getBaseLocation().getBlock();
+        Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
 
-            if (dummy != null) {
-                int outputPower = dummy.getLastOutputPower();
-                if (outputPower <= 0 && dummy.hasAnyArmor()) {
-                    // Static reading: number of armor pieces (1-4 -> scaled 3, 7, 11, 15)
-                    int armorPieces = dummy.getTotalArmorDefense();
-                    outputPower = Math.min(15, (int) Math.round((armorPieces / 20.0) * 15.0));
-                }
-                event.setNewCurrent(Math.max(event.getNewCurrent(), outputPower));
-            }
-            return;
-        }
+        boolean powered = isBlockPowered(supportBlock) || isBlockPowered(baseBlock);
+        dummy.handleRedstoneInput(powered);
+    }
 
-        // 2. Redstone power input into the dummy's base or support block
-        if (event.getOldCurrent() == 0 && event.getNewCurrent() > 0) {
-            DummyInstance dummy = dummyManager.getDummyAtBlock(block);
-            if (dummy == null) {
-                dummy = dummyManager.getDummyAbove(block);
-            }
+    private static boolean isBlockPowered(Block block) {
+        if (block == null) return false;
+        return block.isBlockPowered() || block.isBlockIndirectlyPowered() || block.getBlockPower() > 0;
+    }
 
-            if (dummy != null) {
-                // Trigger a training wobble when pulsed with Redstone
-                dummy.triggerHit(new Vector(0, 0, 0), 3.0);
-                Location loc = dummy.getBaseLocation();
-                loc.getWorld().playSound(loc, Sound.BLOCK_WOOD_STEP, 0.8F, 1.2F);
-                loc.getWorld().spawnParticle(Particle.DUST, loc.clone().add(0, 0.2, 0), 6,
-                        0.2, 0.1, 0.2, 0.0, new org.bukkit.Particle.DustOptions(org.bukkit.Color.RED, 1.0F));
-            }
+    /**
+     * Handles Redstone Wire output from the Dummy:
+     * When redstone wire recalculates near a dummy while the dummy has an active hit pulse,
+     * maintain the wire's power level.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onRedstoneWire(BlockRedstoneEvent event) {
+        Block block = event.getBlock();
+        if (block.getType() != Material.REDSTONE_WIRE) return;
+
+        DummyInstance dummy = dummyManager.getDummyAdjacentTo(block);
+        if (dummy != null && dummy.getLastOutputPower() > 0) {
+            event.setNewCurrent(Math.max(event.getNewCurrent(), dummy.getLastOutputPower()));
         }
     }
 }
