@@ -12,6 +12,8 @@ softdepend:
   - BlockLocker
   - BetterTeams
   - GSit
+  - ModelEngine
+  - HaoHanItemCore
 
 commands:
   haohanutilities:
@@ -47,3 +49,9 @@ permissions:
   haohanutilities.bypass.protection:
     description: Bỏ qua kiểm tra protection khi carry block
     default: op
+  haohanutilities.dummy.use:
+    description: Cho phép đặt và tương tác với bù nhìn rơm (Dummy)
+    default: true
+  haohanutilities.dummy.craft:
+    description: Cho phép chế tạo bù nhìn rơm
+    default: true

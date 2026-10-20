@@ -18,6 +18,8 @@ import vn.haohan.utilities.carry.CarryRecord;
 import vn.haohan.utilities.carry.CarryService;
 import vn.haohan.utilities.carry.CarryValidator;
 import vn.haohan.utilities.config.MessageService;
+import vn.haohan.utilities.dummy.DummyManager;
+import vn.haohan.utilities.dummy.StrawDummyItem;
 import vn.haohan.utilities.heart.CrystalHeartItem;
 import vn.haohan.utilities.heart.CrystalHeartListener;
 import vn.haohan.utilities.phantom.PhantomSuppressionListener;
@@ -36,11 +38,14 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     private final PhantomSuppressionListener phantomSuppression;
     private final CrystalHeartItem heartItem;
     private final CrystalHeartListener heartListener;
+    private final StrawDummyItem strawDummyItem;
+    private final DummyManager dummyManager;
 
     public HaoHanUtilitiesCommand(JavaPlugin plugin, CarryService carryService, CarryValidator validator,
                                   CarryPreferences preferences, MessageService messages,
                                   PhantomSuppressionListener phantomSuppression,
-                                  CrystalHeartItem heartItem, CrystalHeartListener heartListener) {
+                                  CrystalHeartItem heartItem, CrystalHeartListener heartListener,
+                                  StrawDummyItem strawDummyItem, DummyManager dummyManager) {
         this.plugin = plugin;
         this.carryService = carryService;
         this.validator = validator;
@@ -49,6 +54,8 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         this.phantomSuppression = phantomSuppression;
         this.heartItem = heartItem;
         this.heartListener = heartListener;
+        this.strawDummyItem = strawDummyItem;
+        this.dummyManager = dummyManager;
     }
 
     @Override
@@ -78,8 +85,9 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             case "inspect" -> inspect(sender, args);
             case "recover" -> recover(sender, args);
             case "heart" -> heart(sender, args);
+            case "dummy" -> dummy(sender, args);
             default -> {
-                sender.sendMessage("Dùng: /" + label + " <info|toggle|bind|reload|status|inspect|recover|heart>");
+                sender.sendMessage("Dùng: /" + label + " <info|toggle|bind|reload|status|inspect|recover|heart|dummy>");
                 yield true;
             }
         };
@@ -168,6 +176,53 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         sender.sendMessage(ChatColor.YELLOW + "Dùng: /haohanutilities heart <give|setmax>");
         return true;
     }
+
+    private boolean dummy(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.YELLOW + "Dùng: /haohanutilities dummy <give|removeall>");
+            return true;
+        }
+        String sub = args[1].toLowerCase(Locale.ROOT);
+        if (sub.equals("give")) {
+            Player target = null;
+            if (args.length >= 3) {
+                target = Bukkit.getPlayer(args[2]);
+                if (target == null) {
+                    sender.sendMessage(ChatColor.RED + "Không tìm thấy người chơi: " + args[2]);
+                    return true;
+                }
+            } else if (sender instanceof Player p) {
+                target = p;
+            } else {
+                sender.sendMessage(ChatColor.RED + "Console phải chỉ định tên người chơi: /hhu dummy give <player> [amount]");
+                return true;
+            }
+
+            int amount = 1;
+            if (args.length >= 4) {
+                try {
+                    amount = Math.max(1, Integer.parseInt(args[3]));
+                } catch (NumberFormatException ignored) {}
+            }
+
+            ItemStack item = strawDummyItem.createItem(amount);
+            target.getInventory().addItem(item);
+            sender.sendMessage(ChatColor.GREEN + "Đã trao " + amount + " " + StrawDummyItem.DISPLAY_NAME + " cho " + target.getName() + ".");
+            return true;
+        } else if (sub.equals("removeall")) {
+            int count = 0;
+            for (var d : List.copyOf(dummyManager.getAllDummies())) {
+                dummyManager.removeDummy(d, false);
+                count++;
+            }
+            sender.sendMessage(ChatColor.YELLOW + "Đã dọn dẹp " + count + " bù nhìn rơm.");
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.YELLOW + "Dùng: /haohanutilities dummy <give|removeall>");
+        return true;
+    }
+
 
     private boolean toggle(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -328,7 +383,7 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
             List<String> commands = sender.hasPermission("haohanutilities.admin")
-                    ? List.of("info", "toggle", "bind", "reload", "status", "inspect", "recover", "heart")
+                    ? List.of("info", "toggle", "bind", "reload", "status", "inspect", "recover", "heart", "dummy")
                     : List.of("info", "toggle", "bind");
             return filter(commands, args[0]);
         }
@@ -346,6 +401,18 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
                 return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[2]);
             }
         }
+        if (args[0].equalsIgnoreCase("dummy") && sender.hasPermission("haohanutilities.admin")) {
+            if (args.length == 2) {
+                return filter(List.of("give", "removeall"), args[1]);
+            }
+            if (args.length == 3 && args[1].equalsIgnoreCase("give")) {
+                return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[2]);
+            }
+            if (args.length == 4 && args[1].equalsIgnoreCase("give")) {
+                return filter(List.of("1", "16", "64"), args[3]);
+            }
+        }
+
         if ((args[0].equalsIgnoreCase("status") || args[0].equalsIgnoreCase("recover")) && args.length == 2) {
             return filter(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList(), args[1]);
         }

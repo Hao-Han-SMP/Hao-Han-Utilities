@@ -32,6 +32,10 @@ import vn.haohan.utilities.recipe.RottenFleshSmokingRecipe;
 import vn.haohan.utilities.recovery.RecoveryService;
 import vn.haohan.utilities.render.CarryRenderer;
 import vn.haohan.utilities.render.ItemDisplayRenderer;
+import vn.haohan.utilities.dummy.DamageIndicatorService;
+import vn.haohan.utilities.dummy.DummyListener;
+import vn.haohan.utilities.dummy.DummyManager;
+import vn.haohan.utilities.dummy.StrawDummyItem;
 import vn.haohan.utilities.torch.TorchFireListener;
 
 import java.sql.SQLException;
@@ -44,6 +48,8 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
     private CrystalHeartItem heartItem;
     private RottenFleshSmokingRecipe rottenFleshSmokingRecipe;
     private DogFetchService dogFetchService;
+    private StrawDummyItem strawDummyItem;
+    private DummyManager dummyManager;
 
     @Override
     public void onEnable() {
@@ -90,6 +96,14 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         rottenFleshSmokingRecipe.register();
         CrystalHeartListener heartListener = new CrystalHeartListener(this, heartItem);
 
+        strawDummyItem = new StrawDummyItem(this);
+        strawDummyItem.registerRecipe();
+        new vn.haohan.utilities.integration.ItemCoreIntegration(this).registerStrawDummy();
+        DamageIndicatorService damageIndicators = new DamageIndicatorService(this);
+        vn.haohan.utilities.integration.ModelEngineIntegration modelEngine = new vn.haohan.utilities.integration.ModelEngineIntegration(this);
+        dummyManager = new DummyManager(this, strawDummyItem, damageIndicators, modelEngine);
+        DummyListener dummyListener = new DummyListener(dummyManager, protection, messages);
+
         dogFetchService = new DogFetchService(this);
         dogFetchService.start();
 
@@ -106,9 +120,11 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(new TorchFireListener(this), this);
         plugins.registerEvents(heartListener, this);
         plugins.registerEvents(new DogFetchListener(this, dogFetchService), this);
+        plugins.registerEvents(dummyListener, this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
-                this, carryService, validator, preferences, messages, phantomSuppression, heartItem, heartListener);
+                this, carryService, validator, preferences, messages, phantomSuppression,
+                heartItem, heartListener, strawDummyItem, dummyManager);
         PluginCommand command = Objects.requireNonNull(getCommand("haohanutilities"), "Command missing from plugin.yml");
         command.setExecutor(commandHandler);
         command.setTabCompleter(commandHandler);
@@ -126,5 +142,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         if (heartItem != null) heartItem.unregisterRecipe();
         if (rottenFleshSmokingRecipe != null) rottenFleshSmokingRecipe.unregister();
         if (dogFetchService != null) dogFetchService.shutdown();
+        if (strawDummyItem != null) strawDummyItem.unregisterRecipe();
+        if (dummyManager != null) dummyManager.shutdown();
     }
 }

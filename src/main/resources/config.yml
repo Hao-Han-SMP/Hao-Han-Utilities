@@ -167,3 +167,27 @@ dog-fetch:
     enabled: true
     speed-multiplier: 1.45
     circle-radius: 2.6
+
+dummy:
+  # Bật tính năng bù nhìn rơm (Straw Dummy)
+  enabled: true
+  recipe:
+    # Cho phép craft bù nhìn rơm bằng bàn chế tạo
+    enabled: true
+  # Hiển thị số sát thương bay lên khi đánh bù nhìn
+  show-damage-indicator: true
+  # Thời gian tồn tại của số sát thương (ticks, 20 ticks = 1s)
+  indicator-duration-ticks: 24
+  # Cường độ nghiêng ngả khi nhận sát thương
+  wobble-intensity: 1.0
+  # Chiều cao trục xoay thân trên (blocks tính từ mặt đất, 0.75 = khớp eo)
+  pivot-height: 0.75
+  # Tỉ lệ kích thước model bù nhìn
+  model-scale: 1.0
+  # Độ lệch cao độ của model bù nhìn
+  model-vertical-offset: 0.0
+  # CustomModelData cho item bù nhìn rơm
+  custom-model-data: 1001
+  # Yêu cầu permission haohanutilities.dummy.use
+  require-permission: false
+
