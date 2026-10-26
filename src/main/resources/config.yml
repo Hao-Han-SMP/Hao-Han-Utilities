@@ -190,4 +190,8 @@ dummy:
   custom-model-data: 1001
   # Yêu cầu permission haohanutilities.dummy.use
   require-permission: false
+  # Cấu hình xe mỏ bù nhìn (combo bia di chuyển)
+  minecart:
+    # Tốc độ tối đa mặc định của xe mỏ bù nhìn (vanilla là 0.4 blocks/tick)
+    max-speed: 0.4
 

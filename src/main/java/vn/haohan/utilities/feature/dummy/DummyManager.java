@@ -6,6 +6,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -170,6 +171,102 @@ public final class DummyManager {
         return instance;
     }
 
+    public DummyInstance spawnDummyOnMinecart(Minecart minecart, Player owner) {
+        if (minecart == null || !minecart.isValid()) return null;
+
+        World world = minecart.getWorld();
+        Location spawnLoc = minecart.getLocation().clone();
+        UUID dummyId = UUID.randomUUID();
+        UUID ownerUuid = owner != null ? owner.getUniqueId() : null;
+        float initialYaw = spawnLoc.getYaw();
+
+        Interaction interaction = world.spawn(spawnLoc, Interaction.class, entity -> {
+            entity.setInteractionWidth(0.0F);
+            entity.setInteractionHeight(0.0F);
+            entity.setResponsive(false);
+
+            PersistentDataContainer pdc = entity.getPersistentDataContainer();
+            pdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
+            if (ownerUuid != null) {
+                pdc.set(ownerKey, PersistentDataType.STRING, ownerUuid.toString());
+            }
+            pdc.set(roleKey, PersistentDataType.STRING, "interaction");
+            pdc.set(yawKey, PersistentDataType.FLOAT, initialYaw);
+        });
+
+        ItemStack baseItem = dummyItem.createBaseItem();
+        ItemStack bodyItem = dummyItem.createBodyItem();
+        float scaleVal = (float) plugin.getConfig().getDouble("dummy.model-scale", 1.0);
+
+        ItemDisplay baseDisplay = world.spawn(spawnLoc, ItemDisplay.class, entity -> {
+            entity.setRotation(initialYaw, 0.0F);
+            entity.setItemStack(baseItem);
+            entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            entity.setTransformation(new Transformation(
+                    new Vector3f(0.0F, 0.0F, 0.0F),
+                    new Quaternionf(),
+                    new Vector3f(scaleVal, scaleVal, scaleVal),
+                    new Quaternionf()
+            ));
+            PersistentDataContainer pdc = entity.getPersistentDataContainer();
+            pdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
+            if (ownerUuid != null) {
+                pdc.set(ownerKey, PersistentDataType.STRING, ownerUuid.toString());
+            }
+            pdc.set(roleKey, PersistentDataType.STRING, "base");
+        });
+
+        ItemDisplay modelDisplay = world.spawn(spawnLoc, ItemDisplay.class, entity -> {
+            entity.setRotation(initialYaw, 0.0F);
+            entity.setItemStack(bodyItem);
+            entity.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+            entity.setTransformation(new Transformation(
+                    new Vector3f(0.0F, 0.0F, 0.0F),
+                    new Quaternionf(),
+                    new Vector3f(scaleVal, scaleVal, scaleVal),
+                    new Quaternionf()
+            ));
+            PersistentDataContainer pdc = entity.getPersistentDataContainer();
+            pdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
+            if (ownerUuid != null) {
+                pdc.set(ownerKey, PersistentDataType.STRING, ownerUuid.toString());
+            }
+            pdc.set(roleKey, PersistentDataType.STRING, "model");
+        });
+
+        DummyInstance instance = new DummyInstance(plugin, dummyId, ownerUuid, spawnLoc, interaction, baseDisplay, modelDisplay, modelEngine);
+        instance.attachMinecart(minecart);
+        org.bukkit.entity.ArmorStand stand = instance.ensureArmorStand(dummyIdKey, roleKey);
+
+        PersistentDataContainer cartPdc = minecart.getPersistentDataContainer();
+        cartPdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
+        cartPdc.set(roleKey, PersistentDataType.STRING, "minecart");
+
+        double defaultSpeed = plugin.getConfig().getDouble("dummy.minecart.max-speed", 0.4);
+        minecart.setMaxSpeed(defaultSpeed);
+        minecart.setSlowWhenEmpty(false);
+
+        activeDummies.put(dummyId, instance);
+        interactionToDummyId.put(interaction.getUniqueId(), dummyId);
+        interactionToDummyId.put(minecart.getUniqueId(), dummyId);
+        if (stand != null) {
+            interactionToDummyId.put(stand.getUniqueId(), dummyId);
+        }
+        interactionToDummyId.put(modelDisplay.getUniqueId(), dummyId);
+        interactionToDummyId.put(baseDisplay.getUniqueId(), dummyId);
+
+        return instance;
+    }
+
+    public DummyInstance getDummyByMinecart(Minecart minecart) {
+        if (minecart == null) return null;
+        return getByEntity(minecart);
+    }
+
+    public boolean isDummyMinecart(Minecart minecart) {
+        return getDummyByMinecart(minecart) != null;
+    }
+
     public void registerDummyLocation(DummyInstance dummy) {
         if (dummy == null) return;
         org.bukkit.block.Block baseBlock = dummy.getBaseLocation().getBlock();
@@ -269,6 +366,7 @@ public final class DummyManager {
         ItemDisplay modelDisplay = null;
         org.bukkit.entity.ArmorStand foundArmorStand = null;
         org.bukkit.entity.Mannequin foundMannequin = null;
+        Minecart foundMinecart = null;
         UUID ownerUuid = null;
 
         for (Entity e : world.getNearbyEntities(triggerEntity.getLocation(), 3.0, 3.0, 3.0)) {
@@ -286,6 +384,8 @@ public final class DummyManager {
                     foundArmorStand = stand;
                 } else if ("mannequin".equalsIgnoreCase(role) && e instanceof org.bukkit.entity.Mannequin m) {
                     foundMannequin = m;
+                } else if ("minecart".equalsIgnoreCase(role) && e instanceof Minecart cart) {
+                    foundMinecart = cart;
                 } else if (role != null && role.startsWith("armor_") && e instanceof ItemDisplay legacyDisp) {
                     legacyDisp.remove();
                 }
@@ -341,6 +441,11 @@ public final class DummyManager {
             DummyInstance instance = new DummyInstance(
                     plugin, dummyId, ownerUuid, spawnLoc, interaction, baseDisplay, modelDisplay, modelEngine);
 
+            if (foundMinecart != null) {
+                instance.attachMinecart(foundMinecart);
+                interactionToDummyId.put(foundMinecart.getUniqueId(), dummyId);
+            }
+
             if (foundArmorStand != null) {
                 instance.attachRestoredArmorStand(foundArmorStand);
             } else {
@@ -378,7 +483,9 @@ public final class DummyManager {
             if (foundMannequin != null) {
                 interactionToDummyId.put(foundMannequin.getUniqueId(), dummyId);
             }
-            registerDummyLocation(instance);
+            if (!instance.isOnMinecart()) {
+                registerDummyLocation(instance);
+            }
             return instance;
         }
 
@@ -391,6 +498,9 @@ public final class DummyManager {
         unregisterDummyLocation(dummy);
         activeDummies.remove(dummy.getDummyId());
         interactionToDummyId.remove(dummy.getInteraction().getUniqueId());
+        if (dummy.getMinecart() != null) {
+            interactionToDummyId.remove(dummy.getMinecart().getUniqueId());
+        }
         if (dummy.getArmorStand() != null) {
             interactionToDummyId.remove(dummy.getArmorStand().getUniqueId());
         }

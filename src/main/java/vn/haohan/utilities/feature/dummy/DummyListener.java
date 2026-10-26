@@ -9,9 +9,11 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
+import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mannequin;
+import org.bukkit.entity.Minecart;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -26,8 +28,14 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
+import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.vehicle.VehicleDamageEvent;
+import org.bukkit.event.vehicle.VehicleDestroyEvent;
+import org.bukkit.event.vehicle.VehicleEnterEvent;
+import org.bukkit.event.vehicle.VehicleExitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
@@ -111,6 +119,291 @@ public final class DummyListener implements Listener {
                     0.25, 0.25, 0.25,
                     Material.HAY_BLOCK.createBlockData()
             );
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (!(event.getRightClicked() instanceof Minecart minecart)) return;
+
+        Player player = event.getPlayer();
+        ItemStack heldItem = player.getInventory().getItemInMainHand();
+
+        // 1. Placing dummy on minecart
+        if (dummyManager.getDummyItem().isStrawDummy(heldItem)) {
+            event.setCancelled(true);
+            consumedClickTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+
+            if (dummyManager.isDummyMinecart(minecart) || !minecart.isEmpty()) {
+                return;
+            }
+
+            if (!protectionService.canBreakBlock(player, minecart.getLocation().getBlock())) {
+                messageService.send(player, "dummy-no-permission");
+                return;
+            }
+
+            if (player.getGameMode() != GameMode.CREATIVE) {
+                heldItem.setAmount(heldItem.getAmount() - 1);
+            }
+
+            DummyInstance dummy = dummyManager.spawnDummyOnMinecart(minecart, player);
+            if (dummy != null) {
+                Location loc = minecart.getLocation();
+                loc.getWorld().playSound(loc, Sound.ENTITY_ARMOR_STAND_PLACE, 1.0F, 0.9F);
+                loc.getWorld().playSound(loc, Sound.BLOCK_WOOD_PLACE, 1.0F, 1.0F);
+                loc.getWorld().spawnParticle(
+                        Particle.BLOCK,
+                        loc.clone().add(0, 0.5, 0),
+                        15,
+                        0.25, 0.25, 0.25,
+                        Material.HAY_BLOCK.createBlockData()
+                );
+            }
+            return;
+        }
+
+        // 2. Adjusting speed or shearing on dummy minecart
+        DummyInstance dummy = dummyManager.getDummyByMinecart(minecart);
+        if (dummy != null) {
+            if (heldItem.getType() == Material.SHEARS) {
+                event.setCancelled(true);
+                consumedClickTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+                shearDummy(player, dummy);
+                return;
+            }
+            if (player.isSneaking() && heldItem.getType() == Material.AIR) {
+                event.setCancelled(true);
+                consumedClickTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+                cycleMinecartSpeed(player, minecart);
+                return;
+            }
+        }
+    }
+
+    private static final double[] SPEED_TIERS = {0.2, 0.4, 0.6, 0.8, 1.0};
+    private static final String[] SPEED_LABELS = {"Chậm", "Bình thường", "Nhanh", "Rất nhanh", "Siêu tốc"};
+    private static final float[] SPEED_PITCHES = {0.75F, 1.0F, 1.25F, 1.5F, 1.85F};
+
+    private void cycleMinecartSpeed(Player player, Minecart minecart) {
+        double current = minecart.getMaxSpeed();
+        int nextIndex = 0;
+        for (int i = 0; i < SPEED_TIERS.length; i++) {
+            if (Math.abs(current - SPEED_TIERS[i]) < 0.05) {
+                nextIndex = (i + 1) % SPEED_TIERS.length;
+                break;
+            }
+        }
+        double nextSpeed = SPEED_TIERS[nextIndex];
+        String label = SPEED_LABELS[nextIndex];
+        float pitch = SPEED_PITCHES[nextIndex];
+
+        minecart.setMaxSpeed(nextSpeed);
+        minecart.setSlowWhenEmpty(false);
+
+        player.playSound(minecart.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1.0F, pitch);
+        messageService.sendActionBarKey(player, "dummy-speed-changed",
+                "<green>Tốc độ xe mỏ: <yellow><speed></yellow> (<label>)</green>",
+                Map.of(
+                        "speed", String.format("%.1f", nextSpeed),
+                        "label", label
+                ));
+    }
+
+    /**
+     * Prevents projectiles from damaging or breaking the minecart when a dummy is on it,
+     * and forwards the hit to the dummy so target practice functions seamlessly.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onVehicleDamage(VehicleDamageEvent event) {
+        if (!(event.getVehicle() instanceof Minecart minecart)) return;
+        DummyInstance dummy = dummyManager.getDummyByMinecart(minecart);
+        if (dummy == null) return;
+
+        Entity attacker = event.getAttacker();
+        if (attacker instanceof Projectile projectile) {
+            event.setCancelled(true);
+            handleMinecartProjectileHit(dummy, projectile);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onVehicleDestroy(VehicleDestroyEvent event) {
+        if (!(event.getVehicle() instanceof Minecart minecart)) return;
+        DummyInstance dummy = dummyManager.getDummyByMinecart(minecart);
+        if (dummy == null) return;
+
+        Entity attacker = event.getAttacker();
+        if (attacker instanceof Projectile) {
+            event.setCancelled(true);
+            return;
+        }
+
+        dummyManager.removeDummy(dummy, true);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onProjectileHit(ProjectileHitEvent event) {
+        Entity hitEntity = event.getHitEntity();
+        if (hitEntity != null) {
+            DummyInstance dummy = dummyManager.getByEntity(hitEntity);
+            if (dummy != null) {
+                // If the projectile directly hit the stationary dummy's primary hitbox (Mannequin),
+                // let vanilla's native LivingEntity damage pipeline process it normally.
+                if (!dummy.isOnMinecart() && hitEntity.equals(dummy.getMannequin())) {
+                    return;
+                }
+
+                // If it hit any part of a minecart dummy (ArmorStand, Minecart, Display) or other parts:
+                event.setCancelled(true);
+                handleMinecartProjectileHit(dummy, event.getEntity());
+                return;
+            }
+        }
+
+        // When a minecart dummy moves fast, arrows often hit the rail or floor block right next to it
+        // due to discrete tick stepping. Check if a moving dummy minecart is right at the impact block:
+        Block hitBlock = event.getHitBlock();
+        if (hitBlock != null) {
+            Location blockCenter = hitBlock.getLocation().add(0.5, 0.5, 0.5);
+            for (DummyInstance dummy : dummyManager.getAllDummies()) {
+                if (!dummy.isOnMinecart()) continue;
+                Minecart cart = dummy.getMinecart();
+                if (cart == null || !cart.isValid()) continue;
+
+                Location cartLoc = cart.getLocation();
+                if (!cartLoc.getWorld().equals(blockCenter.getWorld())) continue;
+
+                double dx = blockCenter.getX() - cartLoc.getX();
+                double dz = blockCenter.getZ() - cartLoc.getZ();
+                double horizontalDistSq = dx * dx + dz * dz;
+                double dy = blockCenter.getY() - cartLoc.getY();
+
+                // Within 2.0 blocks horizontal radius and vertical range -0.5 to 2.5
+                if (horizontalDistSq <= 2.0 * 2.0 && dy >= -0.5 && dy <= 2.5) {
+                    event.setCancelled(true);
+                    handleMinecartProjectileHit(dummy, event.getEntity());
+                    return;
+                }
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onMinecartDamage(EntityDamageByEntityEvent event) {
+        Entity entity = event.getEntity();
+        DummyInstance dummy = dummyManager.getByEntity(entity);
+        if (dummy == null) return;
+
+        if (dummy.isOnMinecart()) {
+            event.setCancelled(true);
+            if (event.getDamager() instanceof Projectile projectile) {
+                handleMinecartProjectileHit(dummy, projectile);
+            } else if (event.getDamager() instanceof Player player) {
+                if (player.getInventory().getItemInMainHand().getType() == Material.SHEARS) {
+                    shearDummy(player, dummy);
+                } else {
+                    handleMinecartMeleeHit(dummy, player);
+                }
+            }
+            return;
+        }
+
+        if (event.getDamager() instanceof Projectile projectile) {
+            if (!entity.equals(dummy.getMannequin())) {
+                event.setCancelled(true);
+                handleMinecartProjectileHit(dummy, projectile);
+            }
+        }
+    }
+
+    private void handleMinecartProjectileHit(DummyInstance dummy, Projectile projectile) {
+        if (projectile == null || !projectile.isValid()) return;
+
+        double damage = 4.0;
+        boolean isCrit = false;
+        if (projectile instanceof AbstractArrow arrow) {
+            damage = Math.max(1.0, arrow.getDamage() * projectile.getVelocity().length());
+            isCrit = arrow.isCritical();
+        } else if (projectile instanceof org.bukkit.entity.Trident) {
+            damage = 9.0;
+        }
+
+        Location loc = dummy.getBaseLocation();
+        Vector impactDir = projectile.getVelocity();
+
+        dummy.triggerHit(impactDir, damage);
+        dummy.triggerRedstoneOutput(damage);
+        dummyManager.getDamageIndicatorService().spawnIndicator(loc, damage, isCrit, true);
+
+        loc.getWorld().playSound(loc, Sound.BLOCK_GRASS_HIT, 1.0F, 1.1F);
+        loc.getWorld().spawnParticle(
+                Particle.BLOCK,
+                loc.clone().add(0, 1.2, 0),
+                10,
+                0.2, 0.3, 0.2,
+                Material.HAY_BLOCK.createBlockData()
+        );
+
+        if (projectile.isValid()) {
+            projectile.remove();
+        }
+    }
+
+    private void handleMinecartMeleeHit(DummyInstance dummy, Player player) {
+        Location loc = dummy.getBaseLocation();
+        Vector impactDir = loc.toVector().subtract(player.getLocation().toVector());
+
+        double damage = 1.0;
+        var attr = player.getAttribute(org.bukkit.attribute.Attribute.ATTACK_DAMAGE);
+        if (attr != null) {
+            damage = Math.max(1.0, attr.getValue());
+        }
+
+        dummy.triggerHit(impactDir, damage);
+        dummy.triggerRedstoneOutput(damage);
+        dummyManager.getDamageIndicatorService().spawnIndicator(loc, damage, false, false);
+
+        loc.getWorld().playSound(loc, Sound.BLOCK_GRASS_HIT, 1.0F, 1.1F);
+        loc.getWorld().spawnParticle(
+                Particle.BLOCK,
+                loc.clone().add(0, 1.2, 0),
+                10,
+                0.2, 0.3, 0.2,
+                Material.HAY_BLOCK.createBlockData()
+        );
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onEnvironmentalDamage(EntityDamageEvent event) {
+        switch (event.getCause()) {
+            case SUFFOCATION, DROWNING, FALL, CRAMMING, CONTACT, FLY_INTO_WALL -> {
+                if (dummyManager.getByEntity(event.getEntity()) != null) {
+                    event.setCancelled(true);
+                }
+            }
+            default -> {}
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onVehicleEnter(VehicleEnterEvent event) {
+        if (event.getVehicle() instanceof Minecart minecart && dummyManager.isDummyMinecart(minecart)) {
+            DummyInstance dummy = dummyManager.getDummyByMinecart(minecart);
+            if (dummy != null && !dummy.isPart(event.getEntered())) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onVehicleExit(VehicleExitEvent event) {
+        if (event.getVehicle() instanceof Minecart minecart && dummyManager.isDummyMinecart(minecart)) {
+            DummyInstance dummy = dummyManager.getDummyByMinecart(minecart);
+            if (dummy != null && dummy.isPart(event.getExited())) {
+                event.setCancelled(true);
+            }
         }
     }
 
@@ -215,7 +508,6 @@ public final class DummyListener implements Listener {
         loc.getWorld().playSound(loc, Sound.BLOCK_GRASS_BREAK, 1.0F, 1.0F);
         loc.getWorld().spawnParticle(Particle.BLOCK, loc.clone().add(0, 1.0, 0), 25,
                 0.3, 0.5, 0.3, Material.HAY_BLOCK.createBlockData());
-        messageService.send(player, "dummy-removed");
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -232,6 +524,26 @@ public final class DummyListener implements Listener {
         Player player = event.getPlayer();
         ItemStack heldItem = player.getInventory().getItemInMainHand();
         Material heldType = heldItem.getType();
+
+        // On a moving minecart dummy: ONLY Shears (to remove) or Sneak + Empty hand (to cycle speed)
+        // are intercepted. All other items (especially Bow, Crossbow, Trident, Food) MUST NOT be cancelled
+        // so the player can draw the bow or use items completely normally while aiming at the dummy!
+        if (dummy.isOnMinecart()) {
+            if (heldType == Material.SHEARS) {
+                event.setCancelled(true);
+                consumedClickTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+                shearDummy(player, dummy);
+                return;
+            }
+            if (player.isSneaking() && heldType == Material.AIR) {
+                event.setCancelled(true);
+                consumedClickTick.put(player.getUniqueId(), Bukkit.getCurrentTick());
+                cycleMinecartSpeed(player, dummy.getMinecart());
+                return;
+            }
+            return;
+        }
+
         DummyArmorSlot armorSlot = DummyArmorSlot.fromMaterial(heldType);
         DummyArmorTier armorTier = DummyArmorTier.fromMaterial(heldType);
 
@@ -269,10 +581,12 @@ public final class DummyListener implements Listener {
                     dummyManager.getArmorDataKey()
             );
             loc.getWorld().playSound(loc, armorTier.equipSound(), 1.0F, 1.0F);
-            messageService.send(player, "dummy-armor-equipped", Map.of(
-                    "slot", armorSlot.id(),
-                    "tier", armorTier.id()
-            ));
+            messageService.sendActionBarKey(player, "dummy-armor-equipped",
+                    "<green>Bù nhìn đã mặc giáp <white><tier> <slot></white></green>",
+                    Map.of(
+                            "slot", armorSlot.id(),
+                            "tier", armorTier.id()
+                    ));
             return;
         }
 
@@ -281,7 +595,9 @@ public final class DummyListener implements Listener {
         DummyArmorSlot removedSlot = dummy.unequipArmorAt(clickY, dummyManager.getArmorDataKey());
         if (removedSlot != null) {
             loc.getWorld().playSound(loc, Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0F, 0.85F);
-            messageService.send(player, "dummy-armor-removed", Map.of("slot", removedSlot.id()));
+            messageService.sendActionBarKey(player, "dummy-armor-removed",
+                    "<yellow>Đã gỡ giáp <white><slot></white> khỏi bù nhìn</yellow>",
+                    Map.of("slot", removedSlot.id()));
         }
     }
 

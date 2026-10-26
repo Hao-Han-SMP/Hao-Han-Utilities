@@ -9,6 +9,7 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.Minecart;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -51,11 +52,13 @@ public final class DummyInstance {
     private final Map<DummyArmorSlot, DummyArmorTier> equippedArmor = new EnumMap<>(DummyArmorSlot.class);
     private ArmorStand armorStand;
     private Mannequin mannequin;
+    private Minecart minecart;
     static final double MANNEQUIN_HP = 1024.0;
     private static final NamespacedKey HIDDEN_ASSET = NamespacedKey.fromString("haohan:dummy_hidden");
 
     private BukkitTask wobbleTask;
     private BukkitTask redstoneResetTask;
+    private BukkitTask passengerKeeperTask;
     private Vector3f tiltAxis;
     private double worldPushX;
     private double worldPushZ;
@@ -97,7 +100,69 @@ public final class DummyInstance {
     }
 
     public Location getBaseLocation() {
+        if (isOnMinecart()) {
+            return minecart.getLocation();
+        }
         return baseLocation;
+    }
+
+    public Minecart getMinecart() {
+        return minecart;
+    }
+
+    public boolean isOnMinecart() {
+        return minecart != null && minecart.isValid();
+    }
+
+    public void attachMinecart(Minecart minecart) {
+        this.minecart = minecart;
+        if (minecart != null && minecart.isValid()) {
+            minecart.setSlowWhenEmpty(false);
+            minecart.setDerailedVelocityMod(new Vector(0.5, 0.5, 0.5));
+            remountPassengers();
+
+            if (passengerKeeperTask == null) {
+                passengerKeeperTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                    if (!isOnMinecart()) {
+                        stopPassengerKeeper();
+                        return;
+                    }
+                    remountPassengers();
+                }, 5L, 5L);
+            }
+        }
+    }
+
+    public void remountPassengers() {
+        if (!isOnMinecart()) return;
+        var passengers = minecart.getPassengers();
+        if (armorStand != null && armorStand.isValid() && !passengers.contains(armorStand)) {
+            minecart.addPassenger(armorStand);
+        }
+        if (modelDisplay != null && modelDisplay.isValid() && !passengers.contains(modelDisplay)) {
+            minecart.addPassenger(modelDisplay);
+        }
+        if (baseDisplay != null && baseDisplay.isValid() && !passengers.contains(baseDisplay)) {
+            minecart.addPassenger(baseDisplay);
+        }
+    }
+
+    public void stopPassengerKeeper() {
+        if (passengerKeeperTask != null) {
+            passengerKeeperTask.cancel();
+            passengerKeeperTask = null;
+        }
+    }
+
+    public boolean isPart(org.bukkit.entity.Entity entity) {
+        if (entity == null) return false;
+        UUID uid = entity.getUniqueId();
+        return uid.equals(interaction.getUniqueId())
+                || uid.equals(modelDisplay.getUniqueId())
+                || (baseDisplay != null && uid.equals(baseDisplay.getUniqueId()))
+                || (armorStand != null && uid.equals(armorStand.getUniqueId()))
+                || (mannequin != null && uid.equals(mannequin.getUniqueId()))
+                || (minecart != null && uid.equals(minecart.getUniqueId()));
     }
 
     public Interaction getInteraction() {
@@ -173,27 +238,33 @@ public final class DummyInstance {
 
     public Mannequin ensureMannequin(NamespacedKey dummyIdKey, NamespacedKey roleKey) {
         if (mannequin != null && mannequin.isValid()) return mannequin;
-        World world = baseLocation.getWorld();
+        World world = getBaseLocation().getWorld();
         if (world == null) return null;
-        mannequin = world.spawn(baseLocation, Mannequin.class, m -> {
+        mannequin = world.spawn(getBaseLocation(), Mannequin.class, m -> {
             PersistentDataContainer pdc = m.getPersistentDataContainer();
             pdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
             pdc.set(roleKey, PersistentDataType.STRING, "mannequin");
         });
         configureMannequin(mannequin);
+        if (isOnMinecart()) {
+            minecart.addPassenger(mannequin);
+        }
         return mannequin;
     }
 
     public void attachRestoredMannequin(Mannequin restored) {
         this.mannequin = restored;
         configureMannequin(restored);
+        if (isOnMinecart() && !restored.isInsideVehicle()) {
+            minecart.addPassenger(restored);
+        }
     }
 
     private void configureMannequin(Mannequin m) {
         m.setInvisible(true);
         m.setSilent(true);
         m.setGravity(false);
-        m.setImmovable(true);
+        m.setImmovable(!isOnMinecart());
         m.setPersistent(true);
         m.setRemoveWhenFarAway(false);
         m.setCollidable(true); // Must be collidable for projectile ray-tracing and hits!
@@ -201,39 +272,60 @@ public final class DummyInstance {
         var maxHp = m.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         if (maxHp != null) maxHp.setBaseValue(MANNEQUIN_HP);
         m.setHealth(MANNEQUIN_HP);
-        m.teleport(baseLocation);
+        var scaleAttr = m.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+        if (scaleAttr != null) {
+            scaleAttr.setBaseValue(isOnMinecart() ? 1.25 : 1.0);
+        }
+        if (isOnMinecart()) {
+            m.setPose(org.bukkit.entity.Pose.STANDING, true);
+        } else {
+            m.teleport(baseLocation);
+        }
     }
 
     public ArmorStand ensureArmorStand(NamespacedKey dummyIdKey, NamespacedKey roleKey) {
         if (armorStand != null && armorStand.isValid()) {
-            armorStand.setMarker(true);
+            if (!isOnMinecart()) {
+                armorStand.setMarker(true);
+            }
             syncArmorStandRotationAndPose(armorStand);
             return armorStand;
         }
-        World world = baseLocation.getWorld();
+        World world = getBaseLocation().getWorld();
         if (world == null) return null;
 
-        armorStand = world.spawn(baseLocation, ArmorStand.class, stand -> {
+        armorStand = world.spawn(getBaseLocation(), ArmorStand.class, stand -> {
             stand.setInvisible(true);
-            stand.setMarker(true); // visual only; the Mannequin is the hitbox
+            stand.setMarker(!isOnMinecart()); // Physical hitbox when riding minecart!
             stand.setGravity(false);
             stand.setBasePlate(false);
             stand.setArms(true);
             stand.setSilent(true);
-            stand.setInvulnerable(true);
+            stand.setInvulnerable(!isOnMinecart()); // Can receive damage/projectiles on minecart
             stand.setPersistent(true);
+            if (isOnMinecart()) {
+                stand.setCollidable(true);
+                var scaleAttr = stand.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                if (scaleAttr != null) scaleAttr.setBaseValue(1.3);
+                for (org.bukkit.inventory.EquipmentSlot slot : org.bukkit.inventory.EquipmentSlot.values()) {
+                    stand.addEquipmentLock(slot, ArmorStand.LockType.ADDING_OR_CHANGING);
+                    stand.addEquipmentLock(slot, ArmorStand.LockType.REMOVING_OR_CHANGING);
+                }
+            }
             syncArmorStandRotationAndPose(stand);
 
             PersistentDataContainer pdc = stand.getPersistentDataContainer();
             pdc.set(dummyIdKey, PersistentDataType.STRING, dummyId.toString());
             pdc.set(roleKey, PersistentDataType.STRING, "armor_stand");
         });
+        if (isOnMinecart()) {
+            minecart.addPassenger(armorStand);
+        }
         return armorStand;
     }
 
     private void syncArmorStandRotationAndPose(ArmorStand stand) {
-        float yaw = modelDisplay.isValid() ? modelDisplay.getLocation().getYaw() : baseLocation.getYaw();
-        baseLocation.setYaw(yaw);
+        float yaw = modelDisplay.isValid() ? modelDisplay.getLocation().getYaw() : getBaseLocation().getYaw();
         stand.setRotation(yaw, 0.0F);
         stand.setBodyYaw(yaw);
         stand.setHeadPose(EulerAngle.ZERO);
@@ -290,7 +382,11 @@ public final class DummyInstance {
         restoredStand.setArms(true);
         restoredStand.setSilent(true);
         restoredStand.setInvulnerable(true);
-        restoredStand.teleport(baseLocation);
+        if (!isOnMinecart()) {
+            restoredStand.teleport(baseLocation);
+        } else if (!restoredStand.isInsideVehicle()) {
+            minecart.addPassenger(restoredStand);
+        }
         syncArmorStandRotationAndPose(restoredStand);
 
         EntityEquipment equipment = restoredStand.getEquipment();
@@ -321,6 +417,9 @@ public final class DummyInstance {
     }
 
     public boolean isValid() {
+        if (isOnMinecart()) {
+            return minecart != null && minecart.isValid() && modelDisplay != null && modelDisplay.isValid();
+        }
         return interaction.isValid() && modelDisplay.isValid() && (baseDisplay == null || baseDisplay.isValid());
     }
 
@@ -415,17 +514,19 @@ public final class DummyInstance {
             armorStand.setLeftLegPose(EulerAngle.ZERO);
             armorStand.setRightLegPose(EulerAngle.ZERO);
 
-            // Translate ArmorStand so its neck pivot (Y=1.40) follows the dummy's waist-pivoted neck (Y=0.75 + 0.65)
-            double sinA = Math.sin(angle);
-            double cosA = Math.cos(angle);
-            double offsetX = worldPushX * ARMOR_STAND_NECK_ABOVE_WAIST * sinA;
-            double offsetY = -ARMOR_STAND_NECK_ABOVE_WAIST * (1.0 - cosA);
-            double offsetZ = worldPushZ * ARMOR_STAND_NECK_ABOVE_WAIST * sinA;
-            Location neckSyncedLoc = baseLocation.clone().add(offsetX, offsetY, offsetZ);
-            float yaw = baseLocation.getYaw();
-            armorStand.teleport(neckSyncedLoc);
-            armorStand.setRotation(yaw, 0.0F);
-            armorStand.setBodyYaw(yaw);
+            if (!isOnMinecart()) {
+                // Translate ArmorStand so its neck pivot (Y=1.40) follows the dummy's waist-pivoted neck (Y=0.75 + 0.65)
+                double sinA = Math.sin(angle);
+                double cosA = Math.cos(angle);
+                double offsetX = worldPushX * ARMOR_STAND_NECK_ABOVE_WAIST * sinA;
+                double offsetY = -ARMOR_STAND_NECK_ABOVE_WAIST * (1.0 - cosA);
+                double offsetZ = worldPushZ * ARMOR_STAND_NECK_ABOVE_WAIST * sinA;
+                Location neckSyncedLoc = baseLocation.clone().add(offsetX, offsetY, offsetZ);
+                float yaw = baseLocation.getYaw();
+                armorStand.teleport(neckSyncedLoc);
+                armorStand.setRotation(yaw, 0.0F);
+                armorStand.setBodyYaw(yaw);
+            }
         }
     }
 
@@ -442,7 +543,9 @@ public final class DummyInstance {
             modelDisplay.setTransformation(identity);
         }
         if (armorStand != null && armorStand.isValid()) {
-            armorStand.teleport(baseLocation);
+            if (!isOnMinecart()) {
+                armorStand.teleport(baseLocation);
+            }
             syncArmorStandRotationAndPose(armorStand);
         }
     }
@@ -583,18 +686,27 @@ public final class DummyInstance {
 
     public void remove() {
         stopWobble();
+        stopPassengerKeeper();
         if (redstoneResetTask != null) {
             redstoneResetTask.cancel();
             redstoneResetTask = null;
         }
         this.lastOutputPower = 0;
-        org.bukkit.block.Block baseBlock = baseLocation.getBlock();
-        org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
-        updateTargetBlock(supportBlock, 0);
-        updateTargetBlock(baseBlock, 0);
-        updateAdjacentRedstone(baseBlock, supportBlock, 0);
+        if (!isOnMinecart()) {
+            org.bukkit.block.Block baseBlock = baseLocation.getBlock();
+            org.bukkit.block.Block supportBlock = baseBlock.getRelative(org.bukkit.block.BlockFace.DOWN);
+            updateTargetBlock(supportBlock, 0);
+            updateTargetBlock(baseBlock, 0);
+            updateAdjacentRedstone(baseBlock, supportBlock, 0);
+        }
         if (modelEngine != null && interaction.isValid()) {
             modelEngine.destroyModel(interaction);
+        }
+        if (minecart != null && minecart.isValid()) {
+            minecart.getPersistentDataContainer().remove(new NamespacedKey(plugin, "dummy_id"));
+            minecart.getPersistentDataContainer().remove(new NamespacedKey(plugin, "dummy_role"));
+            minecart.eject();
+            this.minecart = null;
         }
         if (armorStand != null && armorStand.isValid()) {
             armorStand.remove();

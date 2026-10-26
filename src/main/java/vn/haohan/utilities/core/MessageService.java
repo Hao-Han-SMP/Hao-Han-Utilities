@@ -58,11 +58,41 @@ public final class MessageService {
         if (DEBUG_ONLY_MESSAGES.contains(key) && !plugin.getConfig().getBoolean("debug", false)) {
             return;
         }
-        String text = messages.getString("prefix", "") + messages.getString(key, key);
+        String template = getRawMessage(key);
+        if (template == null || template.isBlank()) {
+            return;
+        }
+        String text = messages.getString("prefix", "") + template;
         for (Map.Entry<String, String> replacement : replacements.entrySet()) {
             text = text.replace("<" + replacement.getKey() + ">", replacement.getValue());
         }
         player.sendMessage(miniMessage.deserialize(text));
+    }
+
+    public void sendActionBar(Player player, String message) {
+        if (player == null || !player.isOnline()) return;
+        player.sendActionBar(miniMessage.deserialize(message));
+    }
+
+    public void sendActionBarKey(Player player, String key, String fallback, Map<String, String> replacements) {
+        if (player == null || !player.isOnline()) return;
+        String template = getRawMessage(key);
+        if (template == null || template.isBlank()) {
+            template = fallback;
+        }
+        if (template == null || template.isBlank()) return;
+        for (Map.Entry<String, String> replacement : replacements.entrySet()) {
+            template = template.replace("<" + replacement.getKey() + ">", replacement.getValue());
+        }
+        player.sendActionBar(miniMessage.deserialize(template));
+    }
+
+    private String getRawMessage(String key) {
+        String msg = messages.getString(key);
+        if (msg == null && messages.getDefaults() != null) {
+            msg = messages.getDefaults().getString(key);
+        }
+        return msg;
     }
 
     public void sendIfOnline(Player player, String key) {

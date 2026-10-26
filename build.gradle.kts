@@ -49,9 +49,20 @@ tasks {
         useJUnitPlatform()
     }
 
+    val testServerPlugins = file("F:/.TestServer/plugins")
+
     shadowJar {
         archiveClassifier.set("")
         relocate("org.sqlite", "vn.haohan.utilities.libs.sqlite")
+        if (testServerPlugins.exists()) {
+            doLast {
+                copy {
+                    from(archiveFile)
+                    into(testServerPlugins)
+                }
+                println("-> Đã tự động sao chép file jar sang F:/.TestServer/plugins/")
+            }
+        }
     }
 
     jar {
