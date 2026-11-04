@@ -22,6 +22,8 @@ carrying:
   # Bật nếu muốn ngăn người đang carry chủ động gây sát thương.
   # Người đang carry vẫn luôn nhận sát thương bình thường.
   disable-combat: false
+  # Tự rơi vật đang mang khi chết (tránh lạm dụng mang rương quý rồi tự sát).
+  drop-on-death: true
 
 recovery:
   restore-on-startup: true
@@ -126,6 +128,9 @@ ender-chest:
   enabled: true
   size: 54
 
+golden-apple:
+  enabled: true
+
 torch-fire:
   enabled: true
   duration-seconds:
@@ -133,6 +138,38 @@ torch-fire:
     soul-torch: 4
     redstone-torch: 1
   consume-torch: false
+
+invisible-item-frame:
+  # Bật tính năng sử dụng Amethyst Shard để làm khung tranh tàng hình
+  enabled: true
+  # Vật phẩm kích hoạt (mặc định: AMETHYST_SHARD)
+  item: AMETHYST_SHARD
+  # Yêu cầu permission haohanutilities.invisible-frame.use
+  require-permission: false
+  # Tiêu hao 1 Amethyst Shard trong chế độ sinh tồn khi làm tàng hình
+  consume-item: true
+  # Cho phép Shift + Chuột phải với Amethyst Shard để hiện lại khung tranh tàng hình
+  allow-toggle: true
+  # Khi khung tranh đang trống, yêu cầu Shift + Chuột phải để làm tàng hình
+  # (Giúp người chơi vẫn có thể đặt Amethyst Shard vào khung tranh để trưng bày nếu không Shift)
+  empty-frame-requires-sneak: true
+
+reach-through:
+  # Bật tính năng mở xuyên qua khung tranh, tranh vẽ hoặc biển gắn trên rương (tránh tương tác nhầm)
+  enabled: true
+  # Yêu cầu permission haohanutilities.reachthrough.use
+  require-permission: false
+  item-frames:
+    enabled: true
+    # Cho phép mở xuyên qua cả khung tranh trống
+    # (Nếu false: khung tranh trống sẽ nhận vật phẩm để trưng bày như bình thường)
+    reach-through-empty: false
+  paintings:
+    enabled: true
+  signs:
+    enabled: true
+    # Chỉ mở xuyên qua biển đã sáp (waxed). Nếu false, biển chưa sáp vẫn mở được giao diện sửa chữ
+    reach-through-unwaxed: false
 
 crystal-heart:
   enabled: true
@@ -194,4 +231,25 @@ dummy:
   minecart:
     # Tốc độ tối đa mặc định của xe mỏ bù nhìn (vanilla là 0.4 blocks/tick)
     max-speed: 0.4
+
+connection:
+  # Bật tính năng kết nối dây xích (Chain) và dây dắt (Leash)
+  enabled: true
+  # Khoảng cách tối đa cho dây xích (blocks)
+  max-distance-chain: 16.0
+  # Khoảng cách tối đa cho dây dắt (blocks, vanilla physics tự đứt nếu > 10.0)
+  max-distance-leash: 10.0
+
+woodcutter:
+  # Bật tính năng cho phép máy cắt đá (Stonecutter) cắt được các loại gỗ và biến thể đá (theo WoodCutter)
+  enabled: true
+  # Cho phép cắt đá và deepslate thành các biến thể (cobbled, polished, brick, tile)
+  stone-variants: true
+  # Tùy chọn gây sát thương khi dẫm lên máy cắt đá (như trong repo WoodCutter)
+  # Mặc định tắt để an toàn cho lối chơi sinh tồn vanilla
+  contact-damage:
+    enabled: false
+    # Lượng sát thương tính theo tim (1.0 = 2 HP)
+    hearts: 1.0
+
 

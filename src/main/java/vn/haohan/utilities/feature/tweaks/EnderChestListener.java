@@ -47,6 +47,15 @@ public class EnderChestListener implements Listener {
         this.pdcKey = new NamespacedKey(plugin, "ender_chest_items");
     }
 
+    public void shutdown() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.getOpenInventory().getTopInventory().getHolder() instanceof EnderChestHolder) {
+                player.closeInventory();
+            }
+        }
+        activeViewers.clear();
+    }
+
     public boolean isEnabled() {
         return plugin.getConfig().getBoolean("ender-chest.enabled", true);
     }
@@ -62,6 +71,7 @@ public class EnderChestListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (!isEnabled()) return;
+        if (protectionService != null && protectionService.isProbing()) return;
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getHand() != EquipmentSlot.HAND) return;
 
@@ -85,6 +95,11 @@ public class EnderChestListener implements Listener {
         if (event.getInventory().getHolder() instanceof EnderChestHolder) return;
 
         if (!(event.getPlayer() instanceof Player player)) return;
+
+        // If an admin or plugin is viewing another player's ender chest, do not intercept with the admin's chest
+        if (event.getInventory().getHolder() instanceof Player target && !target.getUniqueId().equals(player.getUniqueId())) {
+            return;
+        }
 
         event.setCancelled(true);
         Bukkit.getScheduler().runTask(plugin, () -> open54SlotEnderChest(player, null));

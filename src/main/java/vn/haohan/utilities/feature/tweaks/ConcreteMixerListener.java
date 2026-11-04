@@ -2,6 +2,7 @@ package vn.haohan.utilities.feature.tweaks;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
@@ -21,6 +22,7 @@ import org.bukkit.util.Vector;
 import vn.haohan.utilities.core.ProtectionService;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -97,7 +99,21 @@ public final class ConcreteMixerListener implements Listener {
         transformations.put(item.getUniqueId(), task);
     }
 
-    private boolean cancelExistingTransformation(Item item) { return transformations.remove(item.getUniqueId()) != null; }
+    private boolean cancelExistingTransformation(Item item) {
+        BukkitTask task = transformations.remove(item.getUniqueId());
+        if (task != null) {
+            task.cancel();
+            return true;
+        }
+        return false;
+    }
+
+    public void cleanup() {
+        for (BukkitTask task : transformations.values()) {
+            if (task != null) task.cancel();
+        }
+        transformations.clear();
+    }
 
     private void cancel(Item item) {
         BukkitTask task = transformations.remove(item.getUniqueId());
@@ -152,8 +168,14 @@ public final class ConcreteMixerListener implements Listener {
     private Sound sound(String path, Sound fallback) {
         String value = plugin.getConfig().getString(path);
         if (value == null) return fallback;
-        try { return Sound.valueOf(value.toUpperCase()); }
-        catch (IllegalArgumentException ignored) { return fallback; }
+        try {
+            String normalized = value.toLowerCase(Locale.ROOT).replace('_', '.');
+            NamespacedKey key = normalized.contains(":") ? NamespacedKey.fromString(normalized) : NamespacedKey.minecraft(normalized);
+            Sound s = key != null ? org.bukkit.Registry.SOUNDS.get(key) : null;
+            return s != null ? s : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private void drain(Block cauldron) {

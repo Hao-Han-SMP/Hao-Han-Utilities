@@ -15,6 +15,7 @@ import vn.haohan.utilities.feature.tweaks.CropHarvestListener;
 import vn.haohan.utilities.feature.carry.storage.CarryRepository;
 import vn.haohan.utilities.feature.carry.storage.DatabaseManager;
 import vn.haohan.utilities.feature.carry.storage.SQLiteCarryRepository;
+import vn.haohan.utilities.feature.tweaks.ConcreteMixerListener;
 import vn.haohan.utilities.feature.tweaks.EnderChestListener;
 import vn.haohan.utilities.feature.dogfetch.DogFetchListener;
 import vn.haohan.utilities.feature.dogfetch.DogFetchService;
@@ -39,6 +40,11 @@ import vn.haohan.utilities.feature.dummy.DummyListener;
 import vn.haohan.utilities.feature.dummy.DummyManager;
 import vn.haohan.utilities.feature.dummy.StrawDummyItem;
 import vn.haohan.utilities.feature.tweaks.TorchFireListener;
+import vn.haohan.utilities.feature.tweaks.InvisibleItemFrameListener;
+import vn.haohan.utilities.feature.tweaks.ReachThroughListener;
+import vn.haohan.utilities.feature.connection.ConnectionManager;
+import vn.haohan.utilities.feature.connection.ConnectionListener;
+import vn.haohan.utilities.feature.woodcutter.WoodcutterService;
 
 import java.sql.SQLException;
 import java.util.Objects;
@@ -52,6 +58,10 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
     private DogFetchService dogFetchService;
     private StrawDummyItem strawDummyItem;
     private DummyManager dummyManager;
+    private ConnectionManager connectionManager;
+    private WoodcutterService woodcutterService;
+    private ConcreteMixerListener concreteMixerListener;
+    private EnderChestListener enderChestListener;
 
     @Override
     public void onEnable() {
@@ -109,6 +119,12 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         dogFetchService = new DogFetchService(this);
         dogFetchService.start();
 
+        connectionManager = new ConnectionManager(this);
+        connectionManager.initialize();
+
+        woodcutterService = new WoodcutterService(this);
+        woodcutterService.register();
+
         PluginManager plugins = getServer().getPluginManager();
         GSitIntegration gsit = new GSitIntegration();
         plugins.registerEvents(new PickupPlaceListener(carryService, preferences, gsit), this);
@@ -117,17 +133,24 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(phantomSuppression, this);
         plugins.registerEvents(new GoldenAppleListener(this), this);
         plugins.registerEvents(new CropHarvestListener(this, protection), this);
-        plugins.registerEvents(new ConcreteMixerListener(this, protection), this);
-        plugins.registerEvents(new EnderChestListener(this, protection), this);
+        concreteMixerListener = new ConcreteMixerListener(this, protection);
+        enderChestListener = new EnderChestListener(this, protection);
+        plugins.registerEvents(concreteMixerListener, this);
+        plugins.registerEvents(enderChestListener, this);
         plugins.registerEvents(new TorchFireListener(this), this);
+        plugins.registerEvents(new InvisibleItemFrameListener(this, protection), this);
+        ReachThroughListener reachThrough = new ReachThroughListener(this, protection);
+        plugins.registerEvents(reachThrough, this);
         plugins.registerEvents(heartListener, this);
         plugins.registerEvents(new DogFetchListener(this, dogFetchService), this);
         plugins.registerEvents(dummyListener, this);
+        plugins.registerEvents(new ConnectionListener(this, connectionManager, protection), this);
+        plugins.registerEvents(woodcutterService, this);
 
         HaoHanUtilitiesCommand commandHandler = new HaoHanUtilitiesCommand(
                 this, carryService, validator, preferences, messages, phantomSuppression,
-                heartItem, heartListener, strawDummyItem, dummyManager);
-        for (String name : new String[]{"haohanutilities", "concretemixer"}) {
+                heartItem, heartListener, strawDummyItem, dummyManager, reachThrough, woodcutterService);
+        for (String name : new String[]{"haohanutilities", "concretemixer", "reachtoggle"}) {
             PluginCommand command = Objects.requireNonNull(getCommand(name), "Command missing from plugin.yml: " + name);
             command.setExecutor(commandHandler);
             command.setTabCompleter(commandHandler);
@@ -141,6 +164,8 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (concreteMixerListener != null) concreteMixerListener.cleanup();
+        if (enderChestListener != null) enderChestListener.shutdown();
         if (carryService != null) carryService.shutdown();
         if (renderer != null) renderer.stop();
         if (heartItem != null) heartItem.unregisterRecipe();
@@ -148,5 +173,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         if (dogFetchService != null) dogFetchService.shutdown();
         if (strawDummyItem != null) strawDummyItem.unregisterRecipe();
         if (dummyManager != null) dummyManager.shutdown();
+        if (connectionManager != null) connectionManager.shutdown();
+        if (woodcutterService != null) woodcutterService.unregister();
     }
 }

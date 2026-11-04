@@ -7,11 +7,14 @@ import org.bukkit.FluidCollisionMode;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
 import vn.haohan.utilities.core.MessageService;
@@ -471,6 +474,54 @@ public final class CarryService {
                 renderer.remove(session);
                 logFailure("Cannot render recovered carry", record.carryId(), exception);
                 messages.send(player, "snapshot-error");
+            }
+        }
+    }
+
+    public void handleDeath(Player player) {
+        requireMainThread();
+        Optional<CarrySession> sessionOpt = sessions.get(player.getUniqueId());
+        if (sessionOpt.isEmpty()) {
+            detach(player);
+            return;
+        }
+
+        CarrySession session = sessionOpt.get();
+        boolean dropOnDeath = plugin.getConfig().getBoolean("carrying.drop-on-death", true);
+        if (!dropOnDeath) {
+            detach(player);
+            return;
+        }
+
+        try {
+            if (session.payload().kind() == CarryKind.ENTITY) {
+                Entity restored = snapshots.restoreEntity(player.getLocation(), session.carryId(), session.payload());
+                if (restored != null) {
+                    snapshots.clearPlacedEntityMarker(restored);
+                }
+            } else if (session.payload().kind() == CarryKind.BLOCK || session.payload().kind() == CarryKind.SOUL_ANCHOR) {
+                ItemStack storedItem = ItemStack.deserializeBytes(session.payload().data());
+                if (storedItem.getItemMeta() instanceof BlockStateMeta meta && meta.hasBlockState()) {
+                    BlockState state = meta.getBlockState();
+                    if (state instanceof org.bukkit.inventory.InventoryHolder holder) {
+                        for (ItemStack item : holder.getInventory().getContents()) {
+                            if (item != null && !item.getType().isAir()) {
+                                player.getWorld().dropItemNaturally(player.getLocation(), item);
+                            }
+                        }
+                    }
+                }
+                player.getWorld().dropItemNaturally(player.getLocation(), new ItemStack(storedItem.getType()));
+            }
+            repository.markPlaced(session.carryId());
+        } catch (Exception e) {
+            plugin.getLogger().log(Level.WARNING, "Failed to drop carried object on death for " + player.getName(), e);
+        } finally {
+            renderer.remove(session);
+            sessions.remove(player.getUniqueId());
+            releasePlayerPassengers(player);
+            if (player.getVehicle() instanceof Player) {
+                player.leaveVehicle();
             }
         }
     }

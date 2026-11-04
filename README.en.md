@@ -23,6 +23,9 @@ Hao Han Utilities is a Paper/Purpur `1.21.11` plugin featuring:
 - **54-slot EnderChest:** expands EnderChest inventory to 54 slots (6 rows) with automatic 27-slot legacy item migration.
 - **Torch Ignition:** set entities on fire when attacking them with a Torch (Normal, Soul, or Redstone Torch) in your main hand.
 - **Concrete Mixer:** use water cauldrons to turn concrete powder into matching concrete.
+- **Invisible Item Frame:** use Amethyst Shard on an Item Frame or Glow Item Frame to make it invisible.
+- **Reach-Through:** directly open containers behind item frames, paintings, or signs without accidentally rotating displayed items.
+- **Woodcutter:** craft wood recipes in the stonecutter, supporting all wood families and stone/deepslate variants inspired by WoodCutter.
 
 The plugin is completely server-side and requires no client mod or resource pack.
 
@@ -116,6 +119,36 @@ The list can be changed in `plugins/HaoHanUtilities/config.yml`.
 - **Soul Torch:** sets target on fire for 4 seconds (with soul fire particles).
 - **Redstone Torch:** sets target on fire for 1 second.
 - Fully respects land protection claims (WorldGuard, GriefPrevention, v.v.) and non-PVP zones.
+
+## Invisible Item Frame
+
+- Use an **Amethyst Shard** on an Item Frame or Glow Item Frame.
+- **Frame with an item:** Right-click with Amethyst Shard to turn the frame invisible, leaving only the displayed item floating on the wall.
+- **Empty frame:** Hold **Shift (Sneak) + Right-click** with Amethyst Shard to make the empty frame invisible. Without Shift, right-clicking will place the Amethyst Shard into the frame as a normal display item.
+- **Reveal frame:** While the frame is invisible, hold **Shift + Right-click** with Amethyst Shard to make it visible again (does not consume an Amethyst Shard). Normal right-clicking on an invisible frame continues to rotate the displayed item.
+- Beautiful amethyst chime sound and purple crystal particles upon activation.
+
+## Reach-Through (Item Frame & Container Protection)
+
+- Avoid accidental interactions when placing Item Frames, Paintings, or Signs on chests and containers:
+  - Right-clicking an Item Frame attached to a container opens the **container behind it** instead of rotating the item.
+  - Fully supports Chests, Double Chests, Barrels, Shulker Boxes, Hoppers, Dispensers, Droppers, Furnaces, Smokers, Blast Furnaces, Brewing Stands, Crafters, 54-slot EnderChests, and Crafting Tables.
+  - **Empty item frames:** Can receive items normally (`reach-through-empty: false`). Once an item is placed, subsequent right-clicks will open the container.
+  - **Rotating items:** Simply hold **Shift (Sneak) + Right-click** to interact directly with the frame as in vanilla.
+  - **Player toggle command:** Use `/reachtoggle [on|off]` (or `/hhu reachtoggle [on|off]`) to toggle this feature per-player.
+  - Fully checks chest obstructions (solid block or cat sitting on top) and claim protection (WorldGuard, GriefPrevention, BlockLocker, etc.).
+
+## Stonecutter Wood Recipes (Woodcutter)
+
+Inspired by WoodCutter, stonecutters can now process all wood types directly:
+- **Inputs:** Logs, wood, stems, hyphae, stripped variants, and planks.
+- **Supported wood families:** Oak, Spruce, Birch, Jungle, Acacia, Dark Oak, Mangrove, Cherry, Pale Oak, Crimson, Warped, and Bamboo.
+- **Crafting outputs:**
+  - 1 Plank -> 1 Stair, 2 Slabs, 1 Fence, 1 Fence Gate, 1 Door, 1 Trapdoor, 1 Pressure Plate, 1 Button, 1 Sign, or 2 Sticks.
+  - 1 Log/Wood -> 4 Planks, 4 Stairs, 8 Slabs, 4 Fences, 4 Fence Gates, 4 Doors, 4 Trapdoors, 4 Pressure Plates, 4 Buttons, 4 Signs, or 8 Sticks.
+  - Bamboo & Bamboo Mosaic: cut directly from Bamboo Blocks and Bamboo Planks.
+- **Stone & Deepslate Variants:** Cut deepslate into cobbled, polished, bricks, and tiles; cut stone into cobblestone and mossy cobblestone.
+- **Optional Contact Damage:** Configurable in `config.yml` (disabled by default) to damage entities that step onto active stonecutters.
 
 ## Installation
 
@@ -215,6 +248,7 @@ concrete-mixer:
 | --- | --- |
 | `/hhu info` | Show the plugin version and status. |
 | `/hhu toggle [on\|off]` | Toggle personal carry mode; omit the argument to invert its state. |
+| `/reachtoggle [on\|off]` | Toggle reach-through on containers behind item frames/signs/paintings. |
 | `/hhu bind <sprint\|sneak>` | Select the carry activation control; the physical key is changed in Controls. |
 | `/hhu reload` | Reload config/messages and clean loaded Phantoms. |
 | `/hhu status <player>` | Show a player's active carry transaction. |

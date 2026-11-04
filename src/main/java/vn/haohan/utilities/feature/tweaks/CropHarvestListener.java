@@ -42,11 +42,12 @@ public final class CropHarvestListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
+        if (event.getPlayer().isSneaking()) return;
         if (!enabled("break") || !canUse(event.getPlayer()) || !event.isDropItems()) return;
 
         Block block = event.getBlock();
         Ageable crop = cropData(block);
-        if (crop == null) return;
+        if (crop == null || crop.getAge() < crop.getMaximumAge()) return;
 
         BlockData replanted = replantedData(crop);
         Collection<ItemStack> drops = harvestDrops(block, event.getPlayer());

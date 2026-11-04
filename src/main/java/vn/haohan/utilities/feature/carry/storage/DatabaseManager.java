@@ -33,7 +33,7 @@ public final class DatabaseManager {
 
         try (Connection connection = openConnection(); Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA journal_mode=WAL");
-            statement.execute("PRAGMA synchronous=FULL");
+            statement.execute("PRAGMA synchronous=NORMAL");
             statement.execute("PRAGMA foreign_keys=ON");
             statement.execute("PRAGMA busy_timeout=5000");
             statement.executeUpdate("""

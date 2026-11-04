@@ -32,6 +32,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.vehicle.VehicleDamageEvent;
 import org.bukkit.event.vehicle.VehicleDestroyEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
@@ -73,7 +74,7 @@ public final class DummyListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlaceDummy(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND || event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
 
@@ -82,13 +83,14 @@ public final class DummyListener implements Listener {
             return;
         }
 
+        // Cancel event to prevent vanilla from placing an ordinary ArmorStand
+        event.setCancelled(true);
+
         Player player = event.getPlayer();
         Block clickedBlock = event.getClickedBlock();
         if (clickedBlock == null) {
             return;
         }
-
-        event.setCancelled(true);
 
         Block targetBlock = clickedBlock.getRelative(event.getBlockFace());
         if (!targetBlock.getType().isAir() && !targetBlock.isLiquid()) {
@@ -124,11 +126,12 @@ public final class DummyListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
         if (!(event.getRightClicked() instanceof Minecart minecart)) return;
 
         Player player = event.getPlayer();
-        ItemStack heldItem = player.getInventory().getItemInMainHand();
+        ItemStack heldItem = event.getHand() == EquipmentSlot.HAND
+                ? player.getInventory().getItemInMainHand()
+                : player.getInventory().getItemInOffHand();
 
         // 1. Placing dummy on minecart
         if (dummyManager.getDummyItem().isStrawDummy(heldItem)) {
@@ -485,9 +488,16 @@ public final class DummyListener implements Listener {
     /** The Mannequin must never die; vanilla can still overkill through 1024 HP (e.g. /kill, void). */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDummyDeath(EntityDeathEvent event) {
-        if (event.getEntity() instanceof Mannequin m && dummyManager.getByEntity(m) != null) {
-            event.setCancelled(true);
-            m.setHealth(maxHealth(m));
+        if (event.getEntity() instanceof Mannequin m) {
+            DummyInstance dummy = dummyManager.getByEntity(m);
+            if (dummy != null) {
+                if (m.getLocation().getY() < m.getWorld().getMinHeight() - 64) {
+                    dummyManager.removeDummy(dummy, false);
+                    return;
+                }
+                event.setCancelled(true);
+                m.setHealth(maxHealth(m));
+            }
         }
     }
 
@@ -605,10 +615,15 @@ public final class DummyListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onFollowUpUse(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        Integer tick = consumedClickTick.get(event.getPlayer().getUniqueId());
+        Integer tick = consumedClickTick.remove(event.getPlayer().getUniqueId());
         if (tick != null && tick == Bukkit.getCurrentTick()) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        consumedClickTick.remove(event.getPlayer().getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)

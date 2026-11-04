@@ -23,6 +23,10 @@ commands:
   concretemixer:
     description: Hiển thị thông tin Concrete Mixer hoặc reload cấu hình
     usage: /concretemixer <version|reload>
+  reachtoggle:
+    description: Bật hoặc tắt tính năng mở xuyên qua khung tranh/biển/tranh vẽ gắn trên rương
+    usage: /reachtoggle [on|off]
+    aliases: [reachthrough, rtoggle]
 
 permissions:
   haohanutilities.carry.use:
@@ -54,4 +58,13 @@ permissions:
     default: true
   haohanutilities.dummy.craft:
     description: Cho phép chế tạo bù nhìn rơm
+    default: true
+  haohanutilities.invisible-frame.use:
+    description: Cho phép sử dụng amethyst lên item frame để làm tàng hình
+    default: true
+  haohanutilities.reachthrough.use:
+    description: Cho phép mở xuyên qua khung tranh, tranh vẽ, biển gắn trên rương
+    default: true
+  haohanutilities.reachthrough.toggle:
+    description: Cho phép người chơi tự bật/tắt tính năng reach-through
     default: true

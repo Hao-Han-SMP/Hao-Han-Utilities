@@ -36,7 +36,7 @@ public final class PlayerLifecycleListener implements Listener {
 
     @EventHandler
     public void onDeath(PlayerDeathEvent event) {
-        carryService.detach(event.getEntity());
+        carryService.handleDeath(event.getEntity());
     }
 
     @EventHandler

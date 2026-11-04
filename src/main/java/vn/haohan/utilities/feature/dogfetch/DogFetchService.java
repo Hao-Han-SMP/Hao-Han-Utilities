@@ -381,6 +381,7 @@ public final class DogFetchService {
     private void handleExcitedWaitingDogs() {
         Set<UUID> holdingStickPlayers = new HashSet<>();
         double searchRadius = getSearchRadius();
+        boolean scanForNewDogs = (tickCount % 20 == 0);
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             ItemStack mainHand = player.getInventory().getItemInMainHand();
@@ -388,22 +389,23 @@ public final class DogFetchService {
             if (mainHand.getType() == Material.STICK || offHand.getType() == Material.STICK) {
                 holdingStickPlayers.add(player.getUniqueId());
 
-                List<Wolf> nearbyTamedWolves = player.getWorld().getNearbyEntities(player.getLocation(), searchRadius, searchRadius, searchRadius)
-                        .stream()
-                        .filter(e -> e instanceof Wolf)
-                        .map(e -> (Wolf) e)
-                        .filter(w -> w.isTamed() && w.getOwnerUniqueId() != null && w.getOwnerUniqueId().equals(player.getUniqueId()))
-                        .filter(w -> !w.isDead() && w.isValid() && !w.isLeashed())
-                        .filter(w -> !w.isSitting())
-                        .filter(w -> !isFetching(w))
-                        .toList();
+                if (scanForNewDogs) {
+                    List<Wolf> nearbyTamedWolves = player.getWorld().getNearbyEntities(player.getLocation(), searchRadius, searchRadius, searchRadius)
+                            .stream()
+                            .filter(e -> e instanceof Wolf)
+                            .map(e -> (Wolf) e)
+                            .filter(w -> w.isTamed() && w.getOwnerUniqueId() != null && w.getOwnerUniqueId().equals(player.getUniqueId()))
+                            .filter(w -> !w.isDead() && w.isValid() && !w.isLeashed())
+                            .filter(w -> !w.isSitting())
+                            .filter(w -> !isFetching(w))
+                            .toList();
 
-                for (Wolf wolf : nearbyTamedWolves) {
-                    ExcitedDogSession session = excitedDogs.computeIfAbsent(
-                            wolf.getUniqueId(),
-                            id -> new ExcitedDogSession(id, player.getUniqueId(), getExcitedCircleRadius())
-                    );
-                    session.tick(wolf, player, getExcitedWaitSpeedMultiplier());
+                    for (Wolf wolf : nearbyTamedWolves) {
+                        excitedDogs.computeIfAbsent(
+                                wolf.getUniqueId(),
+                                id -> new ExcitedDogSession(id, player.getUniqueId(), getExcitedCircleRadius())
+                        );
+                    }
                 }
             }
         }
@@ -426,6 +428,8 @@ public final class DogFetchService {
                     wolf.getPathfinder().stopPathfinding();
                 }
                 it.remove();
+            } else {
+                session.tick(wolf, player, getExcitedWaitSpeedMultiplier());
             }
         }
     }

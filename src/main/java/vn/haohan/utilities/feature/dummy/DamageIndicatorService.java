@@ -57,6 +57,7 @@ public final class DamageIndicatorService {
         float settleScale = isCritical ? 1.10F : 0.95F;
 
         spawnLoc.getWorld().spawn(spawnLoc, TextDisplay.class, display -> {
+            display.setPersistent(false);
             display.getPersistentDataContainer().set(indicatorTag, PersistentDataType.BYTE, (byte) 1);
             display.text(textComponent);
             display.setBillboard(Display.Billboard.CENTER);

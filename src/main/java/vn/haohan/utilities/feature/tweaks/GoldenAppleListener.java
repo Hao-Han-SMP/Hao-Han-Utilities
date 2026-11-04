@@ -22,8 +22,13 @@ public final class GoldenAppleListener implements Listener {
         this.plugin = plugin;
     }
 
+    public boolean isEnabled() {
+        return plugin.getConfig().getBoolean("golden-apple.enabled", true);
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onFoodLevelChange(FoodLevelChangeEvent event) {
+        if (!isEnabled()) return;
         ItemStack food = event.getItem();
         if (food == null || food.getType() != Material.GOLDEN_APPLE) return;
 
@@ -33,7 +38,7 @@ public final class GoldenAppleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent event) {
-        if (event.getItem().getType() != Material.GOLDEN_APPLE) return;
+        if (!isEnabled() || event.getItem().getType() != Material.GOLDEN_APPLE) return;
 
         Player player = event.getPlayer();
         PotionEffect previousRegeneration = player.getPotionEffect(PotionEffectType.REGENERATION);

@@ -23,6 +23,10 @@ import vn.haohan.utilities.feature.dummy.StrawDummyItem;
 import vn.haohan.utilities.feature.crystalheart.CrystalHeartItem;
 import vn.haohan.utilities.feature.crystalheart.CrystalHeartListener;
 import vn.haohan.utilities.feature.tweaks.PhantomSuppressionListener;
+import vn.haohan.utilities.feature.tweaks.ReachThroughListener;
+import vn.haohan.utilities.feature.woodcutter.WoodcutterService;
+
+import java.util.Arrays;
 
 import java.util.List;
 import java.util.Locale;
@@ -40,12 +44,16 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     private final CrystalHeartListener heartListener;
     private final StrawDummyItem strawDummyItem;
     private final DummyManager dummyManager;
+    private final ReachThroughListener reachThroughListener;
+    private final WoodcutterService woodcutterService;
 
     public HaoHanUtilitiesCommand(JavaPlugin plugin, CarryService carryService, CarryValidator validator,
                                   CarryPreferences preferences, MessageService messages,
                                   PhantomSuppressionListener phantomSuppression,
                                   CrystalHeartItem heartItem, CrystalHeartListener heartListener,
-                                  StrawDummyItem strawDummyItem, DummyManager dummyManager) {
+                                  StrawDummyItem strawDummyItem, DummyManager dummyManager,
+                                  ReachThroughListener reachThroughListener,
+                                  WoodcutterService woodcutterService) {
         this.plugin = plugin;
         this.carryService = carryService;
         this.validator = validator;
@@ -56,6 +64,8 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         this.heartListener = heartListener;
         this.strawDummyItem = strawDummyItem;
         this.dummyManager = dummyManager;
+        this.reachThroughListener = reachThroughListener;
+        this.woodcutterService = woodcutterService;
     }
 
     @Override
@@ -63,10 +73,16 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         if (command.getName().equalsIgnoreCase("concretemixer")) {
             return concreteMixer(sender, args);
         }
+        if (command.getName().equalsIgnoreCase("reachtoggle")) {
+            return reachToggle(sender, args);
+        }
         if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
             sender.sendMessage("Hảo Hán Utilities v" + plugin.getPluginMeta().getVersion()
-                    + " — Carry Blocks + Animals + Phantom Suppression + Crystal Heart");
+                    + " — Carry Blocks + Animals + Phantom Suppression + Crystal Heart + Reach-Through + Woodcutter");
             return true;
+        }
+        if (args[0].equalsIgnoreCase("reachtoggle")) {
+            return reachToggle(sender, Arrays.copyOfRange(args, 1, args.length));
         }
         if (args[0].equalsIgnoreCase("toggle")) {
             return toggle(sender, args);
@@ -86,8 +102,9 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             case "recover" -> recover(sender, args);
             case "heart" -> heart(sender, args);
             case "dummy" -> dummy(sender, args);
+            case "woodcutter" -> woodcutter(sender);
             default -> {
-                sender.sendMessage("Dùng: /" + label + " <info|toggle|bind|reload|status|inspect|recover|heart|dummy>");
+                sender.sendMessage("Dùng: /" + label + " <info|toggle|bind|reload|status|inspect|recover|heart|dummy|woodcutter>");
                 yield true;
             }
         };
@@ -224,6 +241,42 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
     }
 
 
+    private boolean reachToggle(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Lệnh reachtoggle cần chạy trong game.");
+            return true;
+        }
+        if (!player.hasPermission("haohanutilities.reachthrough.toggle")) {
+            sender.sendMessage("Bạn không có quyền dùng lệnh này.");
+            return true;
+        }
+        if (reachThroughListener == null) {
+            sender.sendMessage(ChatColor.RED + "Tính năng reach-through chưa được kích hoạt.");
+            return true;
+        }
+
+        boolean current = reachThroughListener.isPlayerToggleEnabled(player);
+        boolean target;
+        if (args.length < 1) {
+            target = !current;
+        } else if (args[0].equalsIgnoreCase("on")) {
+            target = true;
+        } else if (args[0].equalsIgnoreCase("off")) {
+            target = false;
+        } else {
+            player.sendMessage("Dùng: /reachtoggle [on|off]");
+            return true;
+        }
+
+        reachThroughListener.setPlayerToggle(player, target);
+        if (target) {
+            messages.send(player, "reachthrough-enabled");
+        } else {
+            messages.send(player, "reachthrough-disabled");
+        }
+        return true;
+    }
+
     private boolean toggle(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Lệnh toggle cần chạy trong game.");
@@ -280,8 +333,29 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
         plugin.reloadConfig();
         validator.reload();
         messages.reload();
+        if (woodcutterService != null) {
+            woodcutterService.reload();
+        }
+        if (strawDummyItem != null) {
+            strawDummyItem.registerRecipe();
+        }
         int removed = phantomSuppression.cleanupLoadedWorlds();
         sender.sendMessage("Đã reload cấu hình. Đã xóa " + removed + " Phantom đang tồn tại.");
+        return true;
+    }
+
+    private boolean woodcutter(CommandSender sender) {
+        if (woodcutterService == null) {
+            sender.sendMessage(ChatColor.RED + "Dịch vụ Woodcutter chưa khởi tạo.");
+            return true;
+        }
+        sender.sendMessage(ChatColor.GOLD + "=== Trạng thái Woodcutter (Stonecutter) ===");
+        sender.sendMessage(ChatColor.YELLOW + "Bật: " + (woodcutterService.isEnabled() ? ChatColor.GREEN + "Có" : ChatColor.RED + "Không"));
+        sender.sendMessage(ChatColor.YELLOW + "Số công thức đã nạp: " + ChatColor.WHITE + woodcutterService.getRegisteredRecipeCount());
+        sender.sendMessage(ChatColor.YELLOW + "Biến thể đá (Stone/Deepslate): " + (woodcutterService.isStoneVariantsEnabled() ? ChatColor.GREEN + "Bật" : ChatColor.RED + "Tắt"));
+        sender.sendMessage(ChatColor.YELLOW + "Sát thương khi dẫm: " + (woodcutterService.isContactDamageEnabled()
+                ? ChatColor.RED + "Bật (" + woodcutterService.getContactDamageHearts() + " tim)"
+                : ChatColor.GREEN + "Tắt (An toàn)"));
         return true;
     }
 
@@ -290,7 +364,20 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             sender.sendMessage("Dùng: /haohanutilities status <player>");
             return true;
         }
-        UUID playerUuid = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+        Player online = Bukkit.getPlayerExact(args[1]);
+        if (online != null) {
+            queryStatus(sender, online.getUniqueId());
+            return true;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            @SuppressWarnings("deprecation")
+            UUID playerUuid = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+            queryStatus(sender, playerUuid);
+        });
+        return true;
+    }
+
+    private void queryStatus(CommandSender sender, UUID playerUuid) {
         carryService.findActive(playerUuid).whenComplete((record, error) -> sync(() -> {
             if (error != null) {
                 sender.sendMessage("Không thể đọc database: " + error.getMessage());
@@ -300,7 +387,6 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
                 sendRecord(sender, record.get());
             }
         }));
-        return true;
     }
 
     private boolean inspect(CommandSender sender, String[] args) {
@@ -332,32 +418,45 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
             sender.sendMessage("Dùng: /haohanutilities recover <player> <original|here>");
             return true;
         }
-        UUID playerUuid = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+        String mode = args[2];
+        Player online = Bukkit.getPlayerExact(args[1]);
+        if (online != null) {
+            executeRecover(admin, online.getUniqueId(), mode);
+            return true;
+        }
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            @SuppressWarnings("deprecation")
+            UUID playerUuid = Bukkit.getOfflinePlayer(args[1]).getUniqueId();
+            executeRecover(admin, playerUuid, mode);
+        });
+        return true;
+    }
+
+    private void executeRecover(Player admin, UUID playerUuid, String mode) {
         carryService.findActive(playerUuid).whenComplete((record, error) -> sync(() -> {
             if (error != null || record.isEmpty()) {
-                sender.sendMessage(error == null ? "Không có transaction để recover." : "Không thể đọc database.");
+                admin.sendMessage(error == null ? "Không có transaction để recover." : "Không thể đọc database.");
                 return;
             }
             CarryRecord value = record.get();
             Block destination;
-            if (args[2].equalsIgnoreCase("original")) {
+            if (mode.equalsIgnoreCase("original")) {
                 World world = Bukkit.getWorld(value.originalPosition().worldUuid());
                 if (world == null || !world.isChunkLoaded(value.originalPosition().x() >> 4, value.originalPosition().z() >> 4)) {
-                    sender.sendMessage("World/chunk gốc chưa được load; không ghi đè cưỡng bức.");
+                    admin.sendMessage("World/chunk gốc chưa được load; không ghi đè cưỡng bức.");
                     return;
                 }
                 destination = value.originalPosition().block(world);
             } else {
                 Block target = admin.getTargetBlockExact(5);
                 if (target == null) {
-                    sender.sendMessage("Không tìm thấy block đích trong tầm nhìn.");
+                    admin.sendMessage("Không tìm thấy block đích trong tầm nhìn.");
                     return;
                 }
                 destination = target.isReplaceable() ? target : target.getRelative(0, 1, 0);
             }
             carryService.restoreHere(admin, value, destination);
         }));
-        return true;
     }
 
     private static void sendRecord(CommandSender sender, CarryRecord record) {
@@ -378,11 +477,26 @@ public final class HaoHanUtilitiesCommand implements CommandExecutor, TabComplet
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+        if (command.getName().equalsIgnoreCase("concretemixer")) {
+            if (args.length == 1) {
+                return filter(List.of("version", "reload"), args[0]);
+            }
+            return List.of();
+        }
+        if (command.getName().equalsIgnoreCase("reachtoggle")) {
+            if (args.length == 1) {
+                return filter(List.of("on", "off"), args[0]);
+            }
+            return List.of();
+        }
         if (args.length == 1) {
             List<String> commands = sender.hasPermission("haohanutilities.admin")
-                    ? List.of("info", "toggle", "bind", "reload", "status", "inspect", "recover", "heart", "dummy")
-                    : List.of("info", "toggle", "bind");
+                    ? List.of("info", "toggle", "reachtoggle", "bind", "reload", "status", "inspect", "recover", "heart", "dummy", "woodcutter")
+                    : List.of("info", "toggle", "reachtoggle", "bind");
             return filter(commands, args[0]);
+        }
+        if (args[0].equalsIgnoreCase("reachtoggle") && args.length == 2) {
+            return filter(List.of("on", "off"), args[1]);
         }
         if (args[0].equalsIgnoreCase("toggle") && args.length == 2) {
             return filter(List.of("on", "off"), args[1]);

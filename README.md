@@ -23,6 +23,9 @@ Hao Han Utilities là plugin Paper/Purpur `1.21.11` gồm các tính năng tiệ
 - **54-slot EnderChest:** mở rộng EnderChest lên 54 ô (6 hàng), tự động chuyển đổi dữ liệu từ EnderChest 27 ô nguyên bản.
 - **Torch Ignition:** đánh thiêu cháy entity khi sử dụng Đuốc (Đuốc thường, Đuốc linh hồn, Đuốc đá đỏ) làm vũ khí cận chiến.
 - **Concrete Mixer:** dùng cauldron nước để đổi concrete powder thành concrete cùng màu.
+- **Invisible Item Frame:** sử dụng Amethyst Shard lên Item Frame hoặc Glow Item Frame để tạo khung tranh tàng hình.
+- **Reach-Through:** mở trực tiếp rương/container gắn phía sau khung tranh, tranh vẽ hoặc biển mà không bị tương tác xoay nhầm đồ.
+- **Woodcutter:** cho phép máy cắt đá (Stonecutter) cắt được tất cả các loại gỗ và biến thể đá theo tỷ lệ chuẩn tương tự repo WoodCutter.
 
 Plugin hoàn toàn server-side, không yêu cầu mod client hoặc resource pack.
 
@@ -126,6 +129,36 @@ Danh sách có thể chỉnh trong `plugins/HaoHanUtilities/config.yml`.
 - **Đuốc đá đỏ (Redstone Torch):** thiêu cháy 1 giây.
 - Tự động tuân thủ quyền bảo vệ vùng (WorldGuard, GriefPrevention, v.v.) và khu vực chống PVP.
 
+## Khung Tranh Tàng Hình (Invisible Item Frame)
+
+- Sử dụng **Mảnh thạch anh tím (Amethyst Shard)** lên khung tranh (hỗ trợ cả Item Frame và Glow Item Frame).
+- **Khung tranh đã có vật phẩm:** Chuột phải với Amethyst Shard để làm khung tranh tàng hình, chỉ hiển thị vật phẩm nổi trên tường.
+- **Khung tranh trống:** Giữ **Shift (Sneak) + Chuột phải** với Amethyst Shard để làm khung tranh tàng hình. Nếu không giữ Shift, thao tác chuột phải sẽ đặt Amethyst Shard vào khung tranh để trưng bày như bình thường.
+- **Hiện lại khung tranh:** Khi khung tranh đang tàng hình, giữ **Shift + Chuột phải** với Amethyst Shard để khôi phục khung tranh về trạng thái nhìn thấy (không tiêu hao Amethyst Shard). Chuột phải thường vào khung tranh tàng hình vẫn cho phép xoay hướng vật phẩm bình thường.
+- Hiệu ứng âm thanh thạch anh tím leng keng và hạt tinh thể tím đẹp mắt khi kích hoạt.
+
+## Mở Xuyên Khung Tranh (Reach-Through)
+
+- Tránh tương tác nhầm khi gắn Item Frame, Tranh vẽ (Painting) hoặc Biển (Sign) lên rương và container:
+  - Khi click chuột phải vào Item Frame gắn trên rương/container, plugin sẽ tự động **mở rương phía sau** thay vì xoay vật phẩm hiển thị trong khung tranh.
+  - Hỗ trợ đầy đủ Chest, Double Chest, Barrel, Shulker Box, Hopper, Dispenser, Dropper, Furnace, Smoker, Blast Furnace, Brewing Stand, Crafter, EnderChest (54 ô) và Crafting Table.
+  - **Khung tranh trống:** Nhận vật phẩm để gắn nhãn bình thường (`reach-through-empty: false`). Sau khi có vật phẩm, các cú click chuột phải tiếp theo sẽ mở rương.
+  - **Khi muốn xoay đồ trong khung tranh:** Chỉ cần giữ **Shift (Sneak) + Chuột phải** để tương tác trực tiếp với khung tranh như vanilla.
+  - **Lệnh bật/tắt cá nhân:** Dùng lệnh `/reachtoggle [on|off]` (hoặc `/hhu reachtoggle [on|off]`) để tự do bật/tắt tính năng theo nhu cầu cá nhân.
+  - Kiểm tra đầy đủ vật cản trên đầu rương (khối đặc, mèo ngồi) và quyền bảo vệ vùng (WorldGuard, GriefPrevention, BlockLocker,...).
+
+## Cắt Gỗ Bằng Máy Cắt Đá (Woodcutter)
+
+Lấy cảm hứng từ WoodCutter, máy cắt đá (Stonecutter) giờ đây có thể xử lý cả gỗ:
+- **Nguyên liệu:** Gỗ nguyên khối (Log/Wood), Thân cây (Stem/Hyphae), Biến thể bóc vỏ (Stripped) và Ván gỗ (Planks).
+- **Hỗ trợ đầy đủ các loại gỗ:** Oak, Spruce, Birch, Jungle, Acacia, Dark Oak, Mangrove, Cherry, Pale Oak, Crimson, Warped và Tre (Bamboo).
+- **Sản phẩm đầu ra:**
+  - Từ 1 Ván gỗ (Planks): tạo 1 Bậc thang, 2 Phiến, 1 Hàng rào, 1 Cổng hàng rào, 1 Cửa, 1 Bẫy, 1 Đĩa áp lực, 1 Nút bấm, 1 Biển hoặc 2 Gậy (Stick).
+  - Từ 1 Gỗ tròn/Thân cây: tạo 4 Ván gỗ, 4 Bậc thang, 8 Phiến, 4 Hàng rào, 4 Cổng hàng rào, 4 Cửa, 4 Bẫy, 4 Đĩa áp lực, 4 Nút bấm, 4 Biển hoặc 8 Gậy.
+  - Tre & Khảm tre (Bamboo Mosaic): cắt trực tiếp từ Khối tre và Ván tre.
+- **Biến thể đá (Deepslate & Stone):** Deepslate cắt thành Cobbled, Polished, Bricks, Tiles; Stone cắt thành Cobblestone, Mossy Cobblestone.
+- **Tùy chọn sát thương (Contact Damage):** Tùy chỉnh trong `config.yml` (mặc định tắt) để gây sát thương khi dẫm lên lưỡi cưa máy cắt đá.
+
 ## Cài đặt
 
 1. Build hoặc tải `HaoHanUtilities-3.1.0.jar`.
@@ -224,6 +257,7 @@ concrete-mixer:
 | --- | --- |
 | `/hhu info` | Hiển thị phiên bản và trạng thái plugin. |
 | `/hhu toggle [on\|off]` | Bật/tắt carry mode cá nhân; không truyền tham số sẽ đảo trạng thái. |
+| `/reachtoggle [on\|off]` | Bật/tắt tính năng mở xuyên khung tranh/biển/tranh vẽ gắn trên rương. |
 | `/hhu bind <sprint\|sneak>` | Chọn control giữ để kích hoạt carry; phím vật lý được đổi trong Controls. |
 | `/hhu reload` | Tải lại config/messages và dọn Phantom đã tải. |
 | `/hhu status <player>` | Xem giao dịch carry hiện tại của người chơi. |

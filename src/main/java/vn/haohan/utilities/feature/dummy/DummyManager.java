@@ -523,6 +523,7 @@ public final class DummyManager {
     public void shutdown() {
         for (DummyInstance dummy : activeDummies.values()) {
             dummy.stopWobble();
+            dummy.stopPassengerKeeper();
         }
         activeDummies.clear();
         interactionToDummyId.clear();
