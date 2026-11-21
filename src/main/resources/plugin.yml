@@ -68,3 +68,6 @@ permissions:
   haohanutilities.reachthrough.toggle:
     description: Cho phép người chơi tự bật/tắt tính năng reach-through
     default: true
+  haohanutilities.blockoverlay.use:
+    description: Cho phép đặt tuyết và thảm vào trong các block không full
+    default: true

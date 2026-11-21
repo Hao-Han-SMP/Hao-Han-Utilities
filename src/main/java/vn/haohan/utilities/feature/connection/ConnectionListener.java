@@ -71,7 +71,8 @@ public final class ConnectionListener implements Listener {
         ItemStack handItem = player.getInventory().getItemInMainHand();
         Material mat = handItem.getType();
 
-        if (mat != Material.IRON_CHAIN && mat != Material.LEAD) {
+        boolean isChain = ConnectionConstants.isChainMaterial(mat);
+        if (!isChain && mat != Material.LEAD) {
             return;
         }
 
@@ -81,7 +82,9 @@ public final class ConnectionListener implements Listener {
         }
 
         Block clickedBlock = event.getClickedBlock();
-        if (clickedBlock == null) return;
+        if (clickedBlock == null || !isSupportedAnchor(clickedBlock.getType())) {
+            return;
+        }
 
         if (!isWorldAllowed(clickedBlock.getWorld())) {
             player.sendActionBar(Component.text("Tính năng kết nối không khả dụng tại thế giới này!", NamedTextColor.RED));
@@ -142,7 +145,7 @@ public final class ConnectionListener implements Listener {
 
             int requiredItems = (int) Math.max(1, Math.round(dist));
             if (player.getGameMode() != GameMode.CREATIVE) {
-                if (mat == Material.IRON_CHAIN) {
+                if (isChain) {
                     if (handItem.getAmount() < requiredItems) {
                         player.sendActionBar(Component.text("Cần " + requiredItems + " sợi xích để nối khoảng cách " + String.format("%.1f", dist) + " blocks! (Hiện có: " + handItem.getAmount() + ")", NamedTextColor.RED));
                         return;
@@ -154,7 +157,7 @@ public final class ConnectionListener implements Listener {
             }
 
             String type = (mat == Material.LEAD) ? "LEASH" : "CHAIN";
-            manager.createConnection(player, type, startLoc, clickLoc, anchorA, anchorB);
+            manager.createConnection(player, type, mat, startLoc, clickLoc, anchorA, anchorB);
 
             Sound sound = (mat == Material.LEAD) ? Sound.ITEM_LEAD_TIED : Sound.BLOCK_CHAIN_PLACE;
             player.playSound(clickLoc, sound, 1f, 1f);
@@ -174,11 +177,12 @@ public final class ConnectionListener implements Listener {
                 && a.getBlockZ() == b.getBlockZ();
     }
 
-    private Location calculateConnectionPoint(Block block, BlockFace face) {
-        Material blockType = block.getType();
-        boolean isFenceOrWall = Tag.FENCES.isTagged(blockType) || Tag.WALLS.isTagged(blockType) || Tag.FENCE_GATES.isTagged(blockType);
+    private boolean isSupportedAnchor(Material blockType) {
+        return Tag.FENCES.isTagged(blockType) || Tag.WALLS.isTagged(blockType);
+    }
 
-        if (isFenceOrWall) {
+    private Location calculateConnectionPoint(Block block, BlockFace face) {
+        if (isSupportedAnchor(block.getType())) {
             return block.getLocation().add(0.5, 0.5, 0.5);
         }
 

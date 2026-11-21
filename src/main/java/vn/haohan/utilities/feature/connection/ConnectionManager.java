@@ -8,6 +8,7 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -163,11 +164,12 @@ public final class ConnectionManager {
         pendingSelections.remove(player.getUniqueId());
     }
 
-    public ConnectionRecord createConnection(Player creator, String type, Location start, Location end, Block anchorA, Block anchorB) {
+    public ConnectionRecord createConnection(Player creator, String type, Material material, Location start, Location end, Block anchorA, Block anchorB) {
         UUID id = UUID.randomUUID();
         ConnectionRecord record = new ConnectionRecord(
                 id,
                 type,
+                material,
                 creator.getUniqueId(),
                 start.getWorld().getUID(),
                 start.getX(), start.getY(), start.getZ(),
@@ -252,10 +254,12 @@ public final class ConnectionManager {
         }
 
         // Fix: Leash drops exactly 1 Lead; Chain drops based on distance.
-        int totalDrops = "LEASH".equalsIgnoreCase(record.type())
+        boolean isLeash = "LEASH".equalsIgnoreCase(record.type());
+        int totalDrops = isLeash
                 ? 1
                 : (int) Math.max(1, Math.round(record.startLocation().distance(record.endLocation())));
-        Material dropMat = "LEASH".equalsIgnoreCase(record.type()) ? Material.LEAD : Material.IRON_CHAIN;
+        Material dropMat = isLeash ? Material.LEAD : record.chainMaterial();
+        BlockData particleData = (isLeash ? Material.IRON_CHAIN : dropMat).createBlockData();
 
         if (links.isEmpty()) {
             Location dropLoc = (hitPoint != null) ? hitPoint : record.startLocation();
@@ -293,7 +297,7 @@ public final class ConnectionManager {
                 Entity link = links.get(index);
                 if (link != null && link.isValid()) {
                     Location loc = link.getLocation();
-                    loc.getWorld().spawnParticle(Particle.BLOCK, loc, 6, 0.1, 0.1, 0.1, Material.IRON_CHAIN.createBlockData());
+                    loc.getWorld().spawnParticle(Particle.BLOCK, loc, 6, 0.1, 0.1, 0.1, particleData);
                     loc.getWorld().playSound(loc, Sound.BLOCK_CHAIN_BREAK, 0.5f, 1.2f);
                     link.remove();
 

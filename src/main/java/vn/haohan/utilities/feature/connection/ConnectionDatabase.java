@@ -1,5 +1,6 @@
 package vn.haohan.utilities.feature.connection;
 
+import org.bukkit.Material;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.nio.file.Path;
@@ -49,6 +50,7 @@ public final class ConnectionDatabase {
                     anchor_b_x INTEGER NOT NULL DEFAULT 0,
                     anchor_b_y INTEGER NOT NULL DEFAULT 0,
                     anchor_b_z INTEGER NOT NULL DEFAULT 0,
+                    material TEXT NOT NULL DEFAULT 'IRON_CHAIN',
                     created_at INTEGER NOT NULL
                 )
             """);
@@ -64,6 +66,11 @@ public final class ConnectionDatabase {
                     // Column already exists
                 }
             }
+            try {
+                stmt.executeUpdate("ALTER TABLE connections ADD COLUMN material TEXT NOT NULL DEFAULT 'IRON_CHAIN'");
+            } catch (SQLException ignored) {
+                // Column already exists
+            }
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to initialize connections.db", e);
         }
@@ -77,10 +84,11 @@ public final class ConnectionDatabase {
         String sql = """
             INSERT OR REPLACE INTO connections 
             (id, type, creator_uuid, world_uuid, start_x, start_y, start_z, end_x, end_y, end_z,
-             anchor_a_x, anchor_a_y, anchor_a_z, anchor_b_x, anchor_b_y, anchor_b_z, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             anchor_a_x, anchor_a_y, anchor_a_z, anchor_b_x, anchor_b_y, anchor_b_z, material, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
         try (Connection conn = openConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            Material storedMat = "LEASH".equalsIgnoreCase(record.type()) ? Material.LEAD : record.chainMaterial();
             ps.setString(1, record.id().toString());
             ps.setString(2, record.type());
             ps.setString(3, record.creatorUuid().toString());
@@ -97,7 +105,8 @@ public final class ConnectionDatabase {
             ps.setInt(14, record.anchorB_X());
             ps.setInt(15, record.anchorB_Y());
             ps.setInt(16, record.anchorB_Z());
-            ps.setLong(17, record.createdAt());
+            ps.setString(17, storedMat.name());
+            ps.setLong(18, record.createdAt());
             ps.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to save connection " + record.id(), e);
@@ -119,9 +128,16 @@ public final class ConnectionDatabase {
         String sql = "SELECT * FROM connections";
         try (Connection conn = openConnection(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
+                String type = rs.getString("type");
+                String matName = rs.getString("material");
+                Material material = matName != null ? Material.matchMaterial(matName) : null;
+                if (material == null) {
+                    material = "LEASH".equalsIgnoreCase(type) ? Material.LEAD : Material.IRON_CHAIN;
+                }
                 list.add(new ConnectionRecord(
                         UUID.fromString(rs.getString("id")),
-                        rs.getString("type"),
+                        type,
+                        material,
                         UUID.fromString(rs.getString("creator_uuid")),
                         UUID.fromString(rs.getString("world_uuid")),
                         rs.getDouble("start_x"),

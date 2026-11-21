@@ -2,9 +2,9 @@ package vn.haohan.utilities.feature.connection;
 
 import org.bukkit.Axis;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.data.type.Chain;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Orientable;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Chicken;
 import org.bukkit.entity.Display;
@@ -55,8 +55,10 @@ public final class ConnectionRenderer {
         double flatness = (totalDistance > 0.001) ? (horizontalDist / totalDistance) : 0.0;
         double maxSag = Math.min(0.35, horizontalDist * 0.025) * flatness;
 
-        Chain chainBlockData = (Chain) Material.IRON_CHAIN.createBlockData();
-        chainBlockData.setAxis(Axis.Y);
+        BlockData chainBlockData = record.chainMaterial().createBlockData();
+        if (chainBlockData instanceof Orientable orientable) {
+            orientable.setAxis(Axis.Y);
+        }
 
         Vector[] positions = new Vector[linkCount + 1];
         for (int i = 0; i <= linkCount; i++) {

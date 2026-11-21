@@ -1,10 +1,12 @@
 package vn.haohan.utilities.feature.connection;
 
+import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConnectionLogicTest {
@@ -58,5 +60,42 @@ class ConnectionLogicTest {
 
         assertTrue(maxLeash <= 10.0, "Leash max distance cannot exceed vanilla 10.0 limit");
         assertTrue(maxChain >= 16.0, "Chain max distance should support at least 16.0 blocks");
+    }
+
+    @Test
+    void testAllChainMaterialsSupported() {
+        Material[] expectedChains = {
+                Material.IRON_CHAIN,
+                Material.COPPER_CHAIN,
+                Material.EXPOSED_COPPER_CHAIN,
+                Material.WEATHERED_COPPER_CHAIN,
+                Material.OXIDIZED_COPPER_CHAIN,
+                Material.WAXED_COPPER_CHAIN,
+                Material.WAXED_EXPOSED_COPPER_CHAIN,
+                Material.WAXED_WEATHERED_COPPER_CHAIN,
+                Material.WAXED_OXIDIZED_COPPER_CHAIN
+        };
+        for (Material chain : expectedChains) {
+            assertTrue(ConnectionConstants.isChainMaterial(chain), "Expected chain material to be supported: " + chain);
+        }
+
+        assertFalse(ConnectionConstants.isChainMaterial(Material.LEAD));
+        assertFalse(ConnectionConstants.isChainMaterial(Material.STONE));
+        assertFalse(ConnectionConstants.isChainMaterial(null));
+    }
+
+    @Test
+    void testConnectionRecordChainMaterialFallbackAndPreservation() {
+        ConnectionRecord legacyChain = new ConnectionRecord(
+                UUID.randomUUID(), "CHAIN", UUID.randomUUID(), UUID.randomUUID(),
+                0, 64, 0, 5, 64, 0, 0, 64, 0, 5, 64, 0, System.currentTimeMillis()
+        );
+        assertEquals(Material.IRON_CHAIN, legacyChain.chainMaterial());
+
+        ConnectionRecord copperChain = new ConnectionRecord(
+                UUID.randomUUID(), "CHAIN", Material.WAXED_OXIDIZED_COPPER_CHAIN, UUID.randomUUID(), UUID.randomUUID(),
+                0, 64, 0, 5, 64, 0, 0, 64, 0, 5, 64, 0, System.currentTimeMillis()
+        );
+        assertEquals(Material.WAXED_OXIDIZED_COPPER_CHAIN, copperChain.chainMaterial());
     }
 }

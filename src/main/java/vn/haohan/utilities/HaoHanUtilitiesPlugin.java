@@ -39,6 +39,7 @@ import vn.haohan.utilities.feature.dummy.DamageIndicatorService;
 import vn.haohan.utilities.feature.dummy.DummyListener;
 import vn.haohan.utilities.feature.dummy.DummyManager;
 import vn.haohan.utilities.feature.dummy.StrawDummyItem;
+import vn.haohan.utilities.feature.tweaks.BlockOverlayListener;
 import vn.haohan.utilities.feature.tweaks.TorchFireListener;
 import vn.haohan.utilities.feature.tweaks.InvisibleItemFrameListener;
 import vn.haohan.utilities.feature.tweaks.ReachThroughListener;
@@ -138,6 +139,7 @@ public final class HaoHanUtilitiesPlugin extends JavaPlugin {
         plugins.registerEvents(concreteMixerListener, this);
         plugins.registerEvents(enderChestListener, this);
         plugins.registerEvents(new TorchFireListener(this), this);
+        plugins.registerEvents(new BlockOverlayListener(this, protection), this);
         plugins.registerEvents(new InvisibleItemFrameListener(this, protection), this);
         ReachThroughListener reachThrough = new ReachThroughListener(this, protection);
         plugins.registerEvents(reachThrough, this);
