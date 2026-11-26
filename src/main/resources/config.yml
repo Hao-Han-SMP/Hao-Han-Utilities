@@ -262,7 +262,9 @@ block-overlay:
   # Nếu false: chỉ cần nhìn vào hitbox block không tương tác (hàng rào, tường, mầm cây...) và chuột phải trực tiếp;
   # riêng block tương tác (rương, phễu...) vẫn cần Shift + chuột phải vào mặt bên/dưới (bấm mặt trên sẽ đặt lên trên rương)
   require-sneak: false
-  # Cho phép xếp chồng nhiều lớp tuyết (1-8 lớp) trong cùng một block
+  # Cho phép xếp chồng nhiều lớp tuyết (1-8) hoặc hoa/lá khô (1-4) trong cùng một block
   stack-snow-layers: true
+  # Số lần đập để phá lớp tuyết/thảm khi không dùng công cụ phù hợp (xẻng cho tuyết, kéo cho thảm)
+  hits-to-break: 1
 
 

@@ -14,14 +14,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BlockOverlayLogicTest {
 
     @Test
-    @DisplayName("Overlay material detection accepts snow layers and carpets only")
+    @DisplayName("Overlay material detection accepts snow layers, carpets, petals, wildflowers, leaf litter, sculk vein, glow lichen, and corals")
     void testOverlayMaterialDetection() {
         assertTrue(BlockOverlayListener.isOverlayMaterial(Material.SNOW));
         assertTrue(BlockOverlayListener.isOverlayMaterial(Material.WHITE_CARPET));
         assertTrue(BlockOverlayListener.isOverlayMaterial(Material.RED_CARPET));
         assertTrue(BlockOverlayListener.isOverlayMaterial(Material.MOSS_CARPET));
         assertTrue(BlockOverlayListener.isOverlayMaterial(Material.PALE_MOSS_CARPET));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.PINK_PETALS));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.WILDFLOWERS));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.LEAF_LITTER));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.SCULK_VEIN));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.GLOW_LICHEN));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.TUBE_CORAL));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.DEAD_FIRE_CORAL));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.BRAIN_CORAL_FAN));
+        assertTrue(BlockOverlayListener.isOverlayMaterial(Material.DEAD_HORN_CORAL_FAN));
 
+        assertFalse(BlockOverlayListener.isOverlayMaterial(Material.TUBE_CORAL_BLOCK));
+        assertFalse(BlockOverlayListener.isOverlayMaterial(Material.DEAD_BRAIN_CORAL_BLOCK));
         assertFalse(BlockOverlayListener.isOverlayMaterial(Material.SNOW_BLOCK));
         assertFalse(BlockOverlayListener.isOverlayMaterial(Material.WHITE_WOOL));
         assertFalse(BlockOverlayListener.isOverlayMaterial(Material.STONE));
@@ -38,6 +49,7 @@ class BlockOverlayLogicTest {
         assertTrue(BlockOverlayListener.isExcludedHostMaterial(Material.BARRIER));
         assertTrue(BlockOverlayListener.isExcludedHostMaterial(Material.SNOW));
         assertTrue(BlockOverlayListener.isExcludedHostMaterial(Material.BLUE_CARPET));
+        assertTrue(BlockOverlayListener.isExcludedHostMaterial(Material.LEAF_LITTER));
 
         assertFalse(BlockOverlayListener.isExcludedHostMaterial(Material.CHEST));
         assertFalse(BlockOverlayListener.isExcludedHostMaterial(Material.OAK_FENCE));
@@ -55,42 +67,38 @@ class BlockOverlayLogicTest {
     }
 
     @Test
-    @DisplayName("Disabled feature, wrong item, or full host block returns IGNORE")
+    @DisplayName("Disabled feature, wrong item, full host block, or unsupported vanilla surface returns IGNORE")
     void testBasicGuardsReturnIgnore() {
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                false, true, true, true, false, BlockFace.NORTH, true, null, 0, 8, Material.SNOW, true));
+                false, true, true, true, false, BlockFace.NORTH, true, true, null, 0, 8, Material.SNOW, true));
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, false, true, true, false, BlockFace.NORTH, true, null, 0, 8, Material.STONE, true));
+                true, false, true, true, false, BlockFace.NORTH, true, true, null, 0, 8, Material.STONE, true));
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, false, null, 0, 8, Material.SNOW, true));
+                true, true, true, true, false, BlockFace.NORTH, false, true, null, 0, 8, Material.SNOW, true));
+        assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
+                true, true, false, false, false, BlockFace.NORTH, true, false, null, 0, 4, Material.PINK_PETALS, true));
     }
 
     @Test
     @DisplayName("Sneak requirement and interactable top-face pass-through are respected")
     void testSneakAndInteractableGuards() {
-        // requireSneak = true without sneaking -> IGNORE
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, false, true, false, BlockFace.NORTH, true, null, 0, 8, Material.SNOW, true));
+                true, true, false, true, false, BlockFace.NORTH, true, true, null, 0, 8, Material.SNOW, true));
 
-        // requireSneak = false on interactable host (chest) without sneaking -> IGNORE so chest can open
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, false, false, true, BlockFace.NORTH, true, null, 0, 8, Material.SNOW, true));
+                true, true, false, false, true, BlockFace.NORTH, true, true, null, 0, 8, Material.SNOW, true));
 
-        // Shift + Right-click on TOP face of interactable host (chest) -> IGNORE so player can place on top of chest
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, true, BlockFace.UP, true, null, 0, 8, Material.WHITE_CARPET, true));
+                true, true, true, true, true, BlockFace.UP, true, true, null, 0, 8, Material.WHITE_CARPET, true));
 
-        // Shift + Right-click on SIDE face of interactable host (chest) -> PLACE_NEW inside chest block
         assertEquals(PlacementAction.PLACE_NEW, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, true, BlockFace.NORTH, true, null, 0, 8, Material.WHITE_CARPET, true));
+                true, true, true, true, true, BlockFace.NORTH, true, true, null, 0, 8, Material.WHITE_CARPET, true));
 
-        // Shift + Right-click on TOP face of non-interactable host (fence/sapling) -> PLACE_NEW
         assertEquals(PlacementAction.PLACE_NEW, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.UP, true, null, 0, 8, Material.SNOW, true));
+                true, true, true, true, false, BlockFace.UP, true, true, null, 0, 8, Material.SNOW, true));
 
-        // requireSneak = false on non-interactable host (fence/sapling) without sneaking -> PLACE_NEW
         assertEquals(PlacementAction.PLACE_NEW, BlockOverlayListener.resolvePlacementAction(
-                true, true, false, false, false, BlockFace.NORTH, true, null, 0, 8, Material.SNOW, true));
+                true, true, false, false, false, BlockFace.NORTH, true, true, null, 0, 8, Material.SNOW, true));
     }
 
     @Test
@@ -102,30 +110,44 @@ class BlockOverlayLogicTest {
     }
 
     @Test
-    @DisplayName("Snow stacking works while different overlay replacement is disallowed")
+    @DisplayName("Snow and flowerbed/segmentable overlays stack while different overlay replacement is disallowed")
     void testStackingAndNoReplace() {
-        // Empty host -> PLACE_NEW
         assertEquals(PlacementAction.PLACE_NEW, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, true, BlockFace.EAST, true, null, 0, 8, Material.SNOW, true));
+                true, true, true, true, true, BlockFace.EAST, true, true, null, 0, 8, Material.SNOW, true));
 
-        // Snow on snow (< 8) -> STACK_SNOW
-        assertEquals(PlacementAction.STACK_SNOW, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, true, Material.SNOW, 3, 8, Material.SNOW, true));
+        assertEquals(PlacementAction.STACK_OVERLAY, BlockOverlayListener.resolvePlacementAction(
+                true, true, true, true, false, BlockFace.NORTH, true, true, Material.SNOW, 3, 8, Material.SNOW, true));
 
-        // Snow on snow (== 8) -> IGNORE
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, true, Material.SNOW, 8, 8, Material.SNOW, true));
+                true, true, true, true, false, BlockFace.NORTH, true, true, Material.SNOW, 8, 8, Material.SNOW, true));
 
-        // Different carpet on existing carpet -> IGNORE (no replace)
+        assertEquals(PlacementAction.STACK_OVERLAY, BlockOverlayListener.resolvePlacementAction(
+                true, true, false, false, false, BlockFace.NORTH, true, true, Material.PINK_PETALS, 2, 4, Material.PINK_PETALS, true));
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, true, Material.WHITE_CARPET, 0, 8, Material.RED_CARPET, true));
+                true, true, false, false, false, BlockFace.NORTH, true, true, Material.PINK_PETALS, 4, 4, Material.PINK_PETALS, true));
 
-        // Snow on existing carpet -> IGNORE (no replace)
         assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, true, Material.WHITE_CARPET, 0, 8, Material.SNOW, true));
+                true, true, true, true, false, BlockFace.NORTH, true, true, Material.WHITE_CARPET, 0, 8, Material.RED_CARPET, true));
+        assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
+                true, true, true, true, false, BlockFace.NORTH, true, true, Material.WHITE_CARPET, 0, 8, Material.SNOW, true));
+    }
 
-        // Same carpet on existing carpet -> IGNORE
-        assertEquals(PlacementAction.IGNORE, BlockOverlayListener.resolvePlacementAction(
-                true, true, true, true, false, BlockFace.NORTH, true, Material.WHITE_CARPET, 0, 8, Material.WHITE_CARPET, true));
+    @Test
+    @DisplayName("Snow drops snowball unless silk touch is used, and break hits scale with tool")
+    void testSnowDropsAndBreakHits() {
+        assertEquals(Material.SNOWBALL, BlockOverlayListener.getDropMaterial(Material.SNOW, false));
+        assertEquals(Material.SNOW, BlockOverlayListener.getDropMaterial(Material.SNOW, true));
+        assertEquals(Material.RED_CARPET, BlockOverlayListener.getDropMaterial(Material.RED_CARPET, false));
+
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.SNOW, Material.DIAMOND_SHOVEL, false, 2));
+        assertEquals(2, BlockOverlayListener.getRequiredBreakHits(Material.SNOW, Material.AIR, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.RED_CARPET, Material.SHEARS, false, 2));
+        assertEquals(2, BlockOverlayListener.getRequiredBreakHits(Material.RED_CARPET, Material.AIR, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.LEAF_LITTER, Material.AIR, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.TUBE_CORAL, Material.AIR, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.BRAIN_CORAL_FAN, Material.AIR, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.GLOW_LICHEN, Material.SHEARS, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.SCULK_VEIN, Material.DIAMOND_HOE, false, 2));
+        assertEquals(1, BlockOverlayListener.getRequiredBreakHits(Material.RED_CARPET, Material.AIR, true, 2));
     }
 }

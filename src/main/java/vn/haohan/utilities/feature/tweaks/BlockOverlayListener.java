@@ -5,12 +5,18 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
 import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Directional;
+import org.bukkit.block.data.MultipleFacing;
+import org.bukkit.block.data.Segmentable;
+import org.bukkit.block.data.type.FlowerBed;
 import org.bukkit.block.data.type.Snow;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
@@ -34,25 +40,33 @@ import org.bukkit.util.BoundingBox;
 import vn.haohan.utilities.core.ProtectionService;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
 
 public class BlockOverlayListener implements Listener {
 
     public enum PlacementAction {
         IGNORE,
         PLACE_NEW,
-        STACK_SNOW
+        STACK_OVERLAY
+    }
+
+    private record HitProgress(UUID playerId, int hits, long lastHitAtMs) {
     }
 
     private static final double FULL_CUBE_EPSILON = 0.999;
-    private static final float CARPET_HITBOX_HEIGHT = 0.0625f;
+    private static final float FLAT_HITBOX_HEIGHT = 0.0625f;
     private static final float SNOW_LAYER_HEIGHT = 0.125f;
+    private static final long HIT_RESET_MS = 2000L;
 
     private final Plugin plugin;
     private final ProtectionService protection;
     private final NamespacedKey overlayKey;
     private final NamespacedKey hitboxKey;
+    private final Map<UUID, HitProgress> breakProgress = new HashMap<>();
 
     public BlockOverlayListener(Plugin plugin, ProtectionService protection) {
         this.plugin = plugin;
@@ -75,7 +89,16 @@ public class BlockOverlayListener implements Listener {
 
     public static boolean isOverlayMaterial(Material material) {
         if (material == null) return false;
-        return material == Material.SNOW || material.name().endsWith("_CARPET");
+        String name = material.name();
+        return material == Material.SNOW
+                || material == Material.PINK_PETALS
+                || material == Material.WILDFLOWERS
+                || material == Material.LEAF_LITTER
+                || material == Material.SCULK_VEIN
+                || material == Material.GLOW_LICHEN
+                || name.endsWith("_CARPET")
+                || name.endsWith("_CORAL")
+                || name.endsWith("_CORAL_FAN");
     }
 
     public static boolean isExcludedHostMaterial(Material material) {
@@ -117,8 +140,6 @@ public class BlockOverlayListener implements Listener {
 
     public static boolean requiresSneakToBypassInteract(Material material) {
         if (material == null) return false;
-        // Fences report isInteractable() == true in Bukkit (for leads),
-        // but right-clicking them with snow/carpet does nothing in vanilla.
         if (material.name().endsWith("_FENCE")) {
             return false;
         }
@@ -129,7 +150,48 @@ public class BlockOverlayListener implements Listener {
         if (data instanceof Snow snow) {
             return Math.max(SNOW_LAYER_HEIGHT, SNOW_LAYER_HEIGHT * snow.getLayers());
         }
-        return CARPET_HITBOX_HEIGHT;
+        String name = data.getMaterial().name();
+        if (name.endsWith("_CORAL")) {
+            return 0.25f;
+        }
+        if (name.endsWith("_CORAL_FAN")) {
+            return 0.15f;
+        }
+        return FLAT_HITBOX_HEIGHT;
+    }
+
+    public static int getRequiredBreakHits(Material overlayMaterial, Material toolMaterial, boolean isCreative, int configuredHits) {
+        if (isCreative || configuredHits <= 1) {
+            return 1;
+        }
+        if (overlayMaterial == Material.PINK_PETALS
+                || overlayMaterial == Material.WILDFLOWERS
+                || overlayMaterial == Material.LEAF_LITTER
+                || (overlayMaterial != null && (overlayMaterial.name().endsWith("_CORAL")
+                || overlayMaterial.name().endsWith("_CORAL_FAN")))) {
+            return 1;
+        }
+        if (overlayMaterial == Material.SNOW && toolMaterial != null && toolMaterial.name().endsWith("_SHOVEL")) {
+            return 1;
+        }
+        if (overlayMaterial != null && overlayMaterial.name().endsWith("_CARPET") && toolMaterial == Material.SHEARS) {
+            return 1;
+        }
+        if (overlayMaterial == Material.GLOW_LICHEN
+                && (toolMaterial == Material.SHEARS || (toolMaterial != null && toolMaterial.name().endsWith("_AXE")))) {
+            return 1;
+        }
+        if (overlayMaterial == Material.SCULK_VEIN && toolMaterial != null && toolMaterial.name().endsWith("_HOE")) {
+            return 1;
+        }
+        return configuredHits;
+    }
+
+    public static Material getDropMaterial(Material overlayMaterial, boolean hasSilkTouch) {
+        if (overlayMaterial == Material.SNOW) {
+            return hasSilkTouch ? Material.SNOW : Material.SNOWBALL;
+        }
+        return overlayMaterial;
     }
 
     public static PlacementAction resolvePlacementAction(
@@ -140,11 +202,12 @@ public class BlockOverlayListener implements Listener {
             boolean hostIsInteractable,
             BlockFace clickedFace,
             boolean hostIsNonFull,
+            boolean vanillaSupported,
             Material existingOverlay,
-            int existingSnowLayers,
-            int maxSnowLayers,
+            int existingCount,
+            int maxCount,
             Material newOverlay,
-            boolean stackSnowLayers
+            boolean stackEnabled
     ) {
         if (!featureEnabled || !isOverlayItem || !hostIsNonFull) {
             return PlacementAction.IGNORE;
@@ -152,17 +215,14 @@ public class BlockOverlayListener implements Listener {
         if ((requireSneak || hostIsInteractable) && !isSneaking) {
             return PlacementAction.IGNORE;
         }
-        // Shift + Right-click on the top face of an interactable block (e.g. chest)
-        // must pass through to vanilla so players can still place blocks on top of it.
         if (hostIsInteractable && clickedFace == BlockFace.UP) {
             return PlacementAction.IGNORE;
         }
         if (existingOverlay == null) {
-            return PlacementAction.PLACE_NEW;
+            return vanillaSupported ? PlacementAction.PLACE_NEW : PlacementAction.IGNORE;
         }
-        if (existingOverlay == Material.SNOW && newOverlay == Material.SNOW
-                && stackSnowLayers && existingSnowLayers < maxSnowLayers) {
-            return PlacementAction.STACK_SNOW;
+        if (existingOverlay == newOverlay && stackEnabled && maxCount > 1 && existingCount < maxCount) {
+            return PlacementAction.STACK_OVERLAY;
         }
         return PlacementAction.IGNORE;
     }
@@ -210,14 +270,11 @@ public class BlockOverlayListener implements Listener {
 
         BlockDisplay existing = findOverlay(targetHost);
         Material existingMaterial = existing != null ? existing.getBlock().getMaterial() : null;
-        int existingLayers = (existing != null && existing.getBlock() instanceof Snow snow)
-                ? snow.getLayers()
-                : 0;
-        int maxLayers = (existing != null && existing.getBlock() instanceof Snow snow)
-                ? snow.getMaximumLayers()
-                : 8;
+        int existingCount = getStackCount(existing != null ? existing.getBlock() : null);
+        int maxCount = getMaxStackCount(existing != null ? existing.getBlock() : null);
 
         boolean hostInteractable = directClickOnHost && requiresSneakToBypassInteract(targetHost.getType());
+        boolean vanillaSupported = existing != null || createInitialBlockData(itemType, player).isSupported(targetHost);
         PlacementAction action = resolvePlacementAction(
                 true,
                 true,
@@ -226,9 +283,10 @@ public class BlockOverlayListener implements Listener {
                 hostInteractable,
                 event.getBlockFace(),
                 true,
+                vanillaSupported,
                 existingMaterial,
-                existingLayers,
-                maxLayers,
+                existingCount,
+                maxCount,
                 itemType,
                 plugin.getConfig().getBoolean("block-overlay.stack-snow-layers", true)
         );
@@ -263,17 +321,40 @@ public class BlockOverlayListener implements Listener {
         }
 
         BlockDisplay overlay = findOverlay(host);
-        boolean dropItems = player.getGameMode() != GameMode.CREATIVE;
-        if (overlay != null) {
-            host.getWorld().playSound(
-                    host.getLocation().add(0.5, 0.2, 0.5),
-                    overlay.getBlock().getSoundGroup().getBreakSound(),
-                    SoundCategory.BLOCKS,
-                    1.0f,
-                    0.8f
-            );
-            removeOverlayEntity(overlay, host, dropItems);
+        if (overlay == null) {
+            breakProgress.remove(interaction.getUniqueId());
+            interaction.remove();
+            return;
         }
+
+        BlockData overlayData = overlay.getBlock();
+        ItemStack tool = player.getInventory().getItemInMainHand();
+        int configuredHits = plugin.getConfig().getInt("block-overlay.hits-to-break", 1);
+        int requiredHits = getRequiredBreakHits(
+                overlayData.getMaterial(),
+                tool.getType(),
+                player.getGameMode() == GameMode.CREATIVE,
+                configuredHits
+        );
+
+        if (requiredHits > 1) {
+            long now = System.currentTimeMillis();
+            HitProgress prev = breakProgress.get(interaction.getUniqueId());
+            int hits = (prev != null && prev.playerId().equals(player.getUniqueId()) && now - prev.lastHitAtMs() <= HIT_RESET_MS)
+                    ? prev.hits() + 1
+                    : 1;
+            if (hits < requiredHits) {
+                breakProgress.put(interaction.getUniqueId(), new HitProgress(player.getUniqueId(), hits, now));
+                playBreakStepEffects(host, overlayData, false);
+                return;
+            }
+        }
+
+        breakProgress.remove(interaction.getUniqueId());
+        boolean dropItems = player.getGameMode() != GameMode.CREATIVE;
+        boolean silkTouch = tool.containsEnchantment(Enchantment.SILK_TOUCH);
+        playBreakStepEffects(host, overlayData, true);
+        removeOverlayEntity(overlay, host, dropItems, silkTouch);
         interaction.remove();
     }
 
@@ -293,7 +374,8 @@ public class BlockOverlayListener implements Listener {
         ItemStack heldItem = hand == EquipmentSlot.HAND
                 ? player.getInventory().getItemInMainHand()
                 : player.getInventory().getItemInOffHand();
-        if (heldItem.getType() != Material.SNOW) return;
+        Material itemType = heldItem.getType();
+        if (!isOverlayMaterial(itemType)) return;
 
         if (plugin.getConfig().getBoolean("block-overlay.require-permission", false)
                 && !player.hasPermission("haohanutilities.blockoverlay.use")) {
@@ -302,13 +384,18 @@ public class BlockOverlayListener implements Listener {
 
         Block host = interaction.getLocation().getBlock();
         BlockDisplay existing = findOverlay(host);
-        if (existing == null || !(existing.getBlock() instanceof Snow snow)) return;
+        if (existing == null) return;
+        BlockData existingData = existing.getBlock();
+        if (existingData.getMaterial() != itemType) return;
         if (!plugin.getConfig().getBoolean("block-overlay.stack-snow-layers", true)) return;
-        if (snow.getLayers() >= snow.getMaximumLayers()) return;
+
+        int current = getStackCount(existingData);
+        int max = getMaxStackCount(existingData);
+        if (max <= 1 || current >= max) return;
         if (protection != null && !protection.canBreakBlock(player, host)) return;
 
         event.setCancelled(true);
-        applyPlacement(player, hand, heldItem, host, existing, Material.SNOW, PlacementAction.STACK_SNOW);
+        applyPlacement(player, hand, heldItem, host, existing, itemType, PlacementAction.STACK_OVERLAY);
     }
 
     private void handleSneakLeftClickRemove(PlayerInteractEvent event, Player player, Block clicked) {
@@ -325,14 +412,9 @@ public class BlockOverlayListener implements Listener {
 
         event.setCancelled(true);
         boolean dropItems = player.getGameMode() != GameMode.CREATIVE;
-        clicked.getWorld().playSound(
-                clicked.getLocation().add(0.5, 0.2, 0.5),
-                existing.getBlock().getSoundGroup().getBreakSound(),
-                SoundCategory.BLOCKS,
-                1.0f,
-                0.8f
-        );
-        removeOverlayAt(clicked, dropItems);
+        boolean silkTouch = player.getInventory().getItemInMainHand().containsEnchantment(Enchantment.SILK_TOUCH);
+        playBreakStepEffects(clicked, existing.getBlock(), true);
+        removeOverlayAt(clicked, dropItems, silkTouch);
     }
 
     private void applyPlacement(
@@ -346,7 +428,7 @@ public class BlockOverlayListener implements Listener {
     ) {
         BlockData placedData;
         if (action == PlacementAction.PLACE_NEW) {
-            placedData = Bukkit.createBlockData(newMaterial);
+            placedData = createInitialBlockData(newMaterial, player);
             Location displayLoc = new Location(host.getWorld(), host.getX(), host.getY(), host.getZ(), 0f, 0f);
             host.getWorld().spawn(displayLoc, BlockDisplay.class, display -> {
                 display.setBlock(placedData);
@@ -354,10 +436,9 @@ public class BlockOverlayListener implements Listener {
                 display.getPersistentDataContainer().set(overlayKey, PersistentDataType.BYTE, (byte) 1);
             });
             spawnHitbox(host, placedData);
-        } else if (action == PlacementAction.STACK_SNOW && existing != null) {
-            Snow snow = (Snow) existing.getBlock().clone();
-            snow.setLayers(snow.getLayers() + 1);
-            placedData = snow;
+        } else if (action == PlacementAction.STACK_OVERLAY && existing != null) {
+            placedData = incrementStack(existing.getBlock());
+            if (placedData == null) return;
             existing.setBlock(placedData);
             Interaction hitbox = findHitbox(host);
             if (hitbox != null) {
@@ -383,6 +464,67 @@ public class BlockOverlayListener implements Listener {
         player.swingHand(hand);
     }
 
+    private void playBreakStepEffects(Block host, BlockData data, boolean isFinalBreak) {
+        Location effectLoc = host.getLocation().add(0.5, 0.08, 0.5);
+        host.getWorld().spawnParticle(
+                Particle.BLOCK,
+                effectLoc,
+                isFinalBreak ? 16 : 8,
+                0.28, 0.04, 0.28,
+                0.05,
+                data
+        );
+        host.getWorld().playSound(
+                effectLoc,
+                isFinalBreak ? data.getSoundGroup().getBreakSound() : data.getSoundGroup().getHitSound(),
+                SoundCategory.BLOCKS,
+                isFinalBreak ? 1.0f : 0.7f,
+                isFinalBreak ? 0.8f : 1.0f
+        );
+    }
+
+    private BlockData createInitialBlockData(Material material, Player player) {
+        BlockData data = Bukkit.createBlockData(material);
+        if (data instanceof Directional directional) {
+            directional.setFacing(player.getFacing().getOppositeFace());
+        }
+        if (data instanceof MultipleFacing multiface && multiface.getAllowedFaces().contains(BlockFace.DOWN)) {
+            multiface.setFace(BlockFace.DOWN, true);
+        }
+        return data;
+    }
+
+    private int getStackCount(BlockData data) {
+        if (data instanceof Snow snow) return snow.getLayers();
+        if (data instanceof FlowerBed bed) return bed.getFlowerAmount();
+        if (data instanceof Segmentable seg) return seg.getSegmentAmount();
+        return data != null ? 1 : 0;
+    }
+
+    private int getMaxStackCount(BlockData data) {
+        if (data instanceof Snow snow) return snow.getMaximumLayers();
+        if (data instanceof FlowerBed bed) return bed.getMaximumFlowerAmount();
+        if (data instanceof Segmentable seg) return seg.getMaximumSegmentAmount();
+        return 1;
+    }
+
+    private BlockData incrementStack(BlockData data) {
+        BlockData copy = data.clone();
+        if (copy instanceof Snow snow) {
+            snow.setLayers(snow.getLayers() + 1);
+            return snow;
+        }
+        if (copy instanceof FlowerBed bed) {
+            bed.setFlowerAmount(bed.getFlowerAmount() + 1);
+            return bed;
+        }
+        if (copy instanceof Segmentable seg) {
+            seg.setSegmentAmount(seg.getSegmentAmount() + 1);
+            return seg;
+        }
+        return null;
+    }
+
     private void spawnHitbox(Block host, BlockData data) {
         Location hitboxLoc = new Location(host.getWorld(), host.getX() + 0.5, host.getY(), host.getZ() + 0.5);
         host.getWorld().spawn(hitboxLoc, Interaction.class, interaction -> {
@@ -399,20 +541,21 @@ public class BlockOverlayListener implements Listener {
         if (protection != null && protection.isProbing()) return;
         Block block = event.getBlock();
         boolean dropItems = event.isDropItems() && event.getPlayer().getGameMode() != GameMode.CREATIVE;
-        removeOverlayAt(block, dropItems);
+        boolean silkTouch = event.getPlayer().getInventory().getItemInMainHand().containsEnchantment(Enchantment.SILK_TOUCH);
+        removeOverlayAt(block, dropItems, silkTouch);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
         for (Block block : event.blockList()) {
-            removeOverlayAt(block, true);
+            removeOverlayAt(block, true, false);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
         for (Block block : event.blockList()) {
-            removeOverlayAt(block, true);
+            removeOverlayAt(block, true, false);
         }
     }
 
@@ -420,7 +563,7 @@ public class BlockOverlayListener implements Listener {
     public void onBlockFromTo(BlockFromToEvent event) {
         Block toBlock = event.getToBlock();
         if (!toBlock.isEmpty() && toBlock.isPassable()) {
-            removeOverlayAt(toBlock, true);
+            removeOverlayAt(toBlock, true, false);
         }
     }
 
@@ -455,32 +598,34 @@ public class BlockOverlayListener implements Listener {
                 && interaction.getPersistentDataContainer().has(hitboxKey, PersistentDataType.BYTE);
     }
 
-    private void removeOverlayAt(Block block, boolean dropItems) {
+    private void removeOverlayAt(Block block, boolean dropItems, boolean silkTouch) {
         BlockDisplay existing = findOverlay(block);
         if (existing != null) {
-            removeOverlayEntity(existing, block, dropItems);
+            removeOverlayEntity(existing, block, dropItems, silkTouch);
         }
         Interaction hitbox = findHitbox(block);
         if (hitbox != null) {
+            breakProgress.remove(hitbox.getUniqueId());
             hitbox.remove();
         }
     }
 
-    private void removeOverlayEntity(BlockDisplay display, Block block, boolean dropItems) {
+    private void removeOverlayEntity(BlockDisplay display, Block block, boolean dropItems, boolean silkTouch) {
         if (dropItems) {
-            dropOverlayItems(display, block);
+            dropOverlayItems(display, block, silkTouch);
         }
         display.remove();
     }
 
-    private void dropOverlayItems(BlockDisplay display, Block block) {
+    private void dropOverlayItems(BlockDisplay display, Block block, boolean silkTouch) {
         BlockData data = display.getBlock();
         Material material = data.getMaterial();
         if (!isOverlayMaterial(material)) return;
-        int amount = (data instanceof Snow snow) ? snow.getLayers() : 1;
+        int amount = getStackCount(data);
+        Material dropMaterial = getDropMaterial(material, silkTouch);
         block.getWorld().dropItemNaturally(
                 block.getLocation().add(0.5, 0.5, 0.5),
-                new ItemStack(material, amount)
+                new ItemStack(dropMaterial, amount)
         );
     }
 }
